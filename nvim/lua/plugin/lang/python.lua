@@ -16,7 +16,6 @@ return {
 	-- python syntax
 	{
 		"vim-python/python-syntax",
-		event = { "BufReadPre", "BufNewFile" },
 		ft = { "python" },
 		config = function()
 			vim.g.python_version_2 = 0

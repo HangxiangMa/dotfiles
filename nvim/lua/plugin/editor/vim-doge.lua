@@ -1,21 +1,17 @@
 return {
 	"kkoomen/vim-doge",
-	event = { "BufReadPre", "BufNewFile" },
+	keys = {
+		{ "gDt", desc = "Doge Generate (default trigger)" },
+		{ "gDc", "<Plug>(doge-generate)", desc = "Doge Generate" },
+		{ "<TAB>", "<Plug>(doge-comment-jump-forward)", mode = { "n", "i", "x" } },
+		{ "<S-TAB>", "<Plug>(doge-comment-jump-backward)", mode = { "n", "i", "x" } },
+	},
+	cmd = { "DogeGenerate", "DogeCreateDocStandard" },
 	build = function()
 		vim.fn["doge#install"]()
 	end,
-	config = function()
-        -- vim-doge
-        vim.g.doge_enable_mappings = 0
-        vim.g.doge_mapping = "gDt"
-        vim.keymap.set("n", "gDc", "<Plug>(doge-generate)")
-
-        -- Interactive mode comment todo-jumping
-        vim.keymap.set("n", "<TAB>", "<Plug>(doge-comment-jump-forward)")
-        vim.keymap.set("n", "<S-TAB>", "<Plug>(doge-comment-jump-backward)")
-        vim.keymap.set("i", "<TAB>", "<Plug>(doge-comment-jump-forward)")
-        vim.keymap.set("i", "<S-TAB>", "<Plug>(doge-comment-jump-backward)")
-        vim.keymap.set("x", "<TAB>", "<Plug>(doge-comment-jump-forward)")
-        vim.keymap.set("x", "<S-TAB>", "<Plug>(doge-comment-jump-backward)")
+	init = function()
+		vim.g.doge_enable_mappings = 0
+		vim.g.doge_mapping = "gDt"
 	end,
 }
