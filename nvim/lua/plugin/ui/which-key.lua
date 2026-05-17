@@ -59,12 +59,11 @@ return {
 
 			-- common
 			{ "<leader><leader>", group = "Common" },
-			{ "<leader><leader>i", desc = "IconPicker Normal"},
-			{ "<leader><leader>y", desc = "IconPicker Yank"},
-			{ "<leader><leader>v", desc = "Toggle Visual Whitespace"},
-			{ "<leader><leader>s", desc = "Trim Trailing Whitespace"},
-			{ "<leader><leader>l", desc = "Trim Trailing Empty Lines"},
-
+			{ "<leader><leader>i", desc = "IconPicker Normal" },
+			{ "<leader><leader>y", desc = "IconPicker Yank" },
+			{ "<leader><leader>v", desc = "Toggle Visual Whitespace" },
+			{ "<leader><leader>s", desc = "Trim Trailing Whitespace" },
+			{ "<leader><leader>l", desc = "Trim Trailing Empty Lines" },
 
 			-- vim basic
 			{ "<leader>nh", desc = "No Highlights", hidden = true },
@@ -74,8 +73,8 @@ return {
 			{ "<leader>e", desc = "Spider e", hidden = true },
 			{ "<leader>w", desc = "Spider w", hidden = true },
 			{ "<leader>W", group = "Window" },
-			{ "<leader>Wh", desc = "<cmd>:sp<CR>", "Spilt Horizontal" },
-			{ "<leader>Wv", desc = "<cmd>:vsp<CR>", "Spilt Vertical" },
+			{ "<leader>Wh", "<cmd>:sp<CR>", desc = "Split Horizontal" },
+			{ "<leader>Wv", "<cmd>:vsp<CR>", desc = "Split Vertical" },
 			{ "g", group = "General" },
 			{ "gd", "<cmd>LspUI definition<cr>", desc = "Goto Definition" },
 			{ "gD", "<cmd>LspUI declaration<cr>", desc = "Goto Declaration" },
@@ -109,12 +108,6 @@ return {
 			{ "g*", desc = "Search Symbol(↑)" },
 			{ "g#", desc = "Search Symbol(↓)" },
 
-			-- Doxygen
-			{ "<leader>D", group = "Doge" },
-			{ "<leader>Dt", desc = "Trigger Doge" },
-			{ "<leader>Dc", desc = "Generate Doxygen Comment" },
-
-
 			-- yazi
 			{ "<leader>-", desc = "Yazi" },
 
@@ -136,13 +129,17 @@ return {
 			{ "<leader>tcl", desc = "Close Left Tab" },
 			{ "<leader>tcr", desc = "Close Right Tab" },
 			-- arena
-			{"<leader>tm", "<cmd>ArenaToggle<cr>", desc = "Toggle Buffer Menu" },
+			{ "<leader>tm", "<cmd>ArenaToggle<cr>", desc = "Toggle Buffer Menu" },
 
 			-- File
 			{ "<leader>f", group = "File" },
 			{ "<leader>fB", "<cmd>FzfLua buffers<cr>", desc = "Buffers(All)" },
 			{ "<leader>ff", "<cmd>FzfLua files<cr>", desc = "Find Files(Root)" },
-			{ "<leader>fF", "<cmd>lua require('fzf-lua').files({ cwd = vim.fn.expand('%:p:h') })<cr>", desc = "Find Files(Buffer Dir)" },
+			{
+				"<leader>fF",
+				"<cmd>lua require('fzf-lua').files({ cwd = vim.fn.expand('%:p:h') })<cr>",
+				desc = "Find Files(Buffer Dir)",
+			},
 			{ "<leader>fr", "<cmd>FzfLua oldfiles<cr>", desc = "Open Recent Files" },
 			{ "<leader>fo", desc = "Smart Open (frecency)" },
 			{ "<leader>fO", desc = "Smart Open (CWD)" },
@@ -198,9 +195,8 @@ return {
 			{ "<leader>gr", "<cmd>lua require 'gitsigns'.reset_hunk()<cr>", desc = "Reset Hunk" },
 			{ "<leader>gR", "<cmd>lua require 'gitsigns'.reset_buffer()<cr>", desc = "Reset Buffer" },
 			{ "<leader>gs", "<cmd>lua require 'gitsigns'.stage_hunk()<cr>", desc = "Stage Hunk" },
-			{ "<leader>gS", "<cmd>lua require 'gitsigns'.stage_buffer()<cr>", desc = "Stage Hunk" },
+			{ "<leader>gS", "<cmd>lua require 'gitsigns'.stage_buffer()<cr>", desc = "Stage Buffer" },
 			{ "<leader>gu", "<cmd>lua require 'gitsigns'.undo_stage_hunk()<cr>", desc = "Undo Stage Hunk" },
-			{ "<leader>gU", "<cmd>lua require 'gitsigns'.undo_stage_hunk()<cr>", desc = "Undo Stage Hunk" },
 			{ "<leader>go", "<cmd>FzfLua git_status<cr>", desc = "Open changed file" },
 			{ "<leader>gb", "<cmd>FzfLua git_branches<cr>", desc = "Checkout branch" },
 			{ "<leader>gc", "<cmd>FzfLua git_commits<cr>", desc = "Checkout commit" },
@@ -232,43 +228,11 @@ return {
 			{ "<leader>ac", "<cmd>FzfLua diagnostics_document<cr>", desc = "Diagnostics(Buffer)" },
 			{ "<leader>ar", "<cmd>FzfLua diagnostics_workspace<cr>", desc = "Diagnostics(Workspace)" },
 
-			-- Dap
-			{ "<leader>d", group = "Dap" },
-			{ "<leader>dB", desc = "BreakPoint Condition" },
-			{ "<leader>db", desc = "Toggle BreakPoint" },
-			{ "<leader>dc", desc = "Continue " },
-			{ "<leader>dC", desc = "Run to Cursor" },
-			{ "<leader>da", desc = "Run with Args" },
-			{ "<leader>dl", desc = "Run Last" },
-			{ "<leader>dg", desc = "Goto line (on execute)" },
-			{ "<leader>dp", desc = "Pause" },
-			{ "<leader>ds", desc = "Session " },
-			{ "<leader>dr", desc = "Toggle REPL" },
-			{ "<leader>do", desc = "Step Out" },
-			{ "<leader>dO", desc = "Step Over" },
-			{ "<leader>di", desc = "Step Into" },
-			{ "<leader>dj", desc = "Down" },
-			{ "<leader>dk", desc = "Up" },
-			{ "<leader>dw", desc = "Widgets" },
-			{ "<leader>du", desc = "Dap UI" },
-			{ "<leader>de", desc = "Dap Eval " },
+			-- Dap (nvim-dap is currently disabled; keys are registered by the plugin
+			-- itself via its `keys` spec when re-enabled. No declarations here.)
 
-			-- Neotest
-			{ "<leader>v", group = "Neotest" },
-			{ "<leader>va", "<cmd>lua require('neotest').run.attach()<cr>", desc = "Attach Nearest" },
-			{ "<leader>vd", "<cmd>lua require('neotest').run.run({strategy = 'dap'})<cr>", desc = "Debug Nearest" },
-			{ "<leader>vt", "<cmd>lua require('neotest').run.run(vim.fn.expand('%'))<cr>", desc = "Run File" },
-			{ "<leader>vT", "<cmd>lua require('neotest').run.run(vim.uv.cwd())<cr>", desc = "Run All Test Files" },
-			{ "<leader>vr", "<cmd>lua require('neotest').run.run()<cr>", desc = "Run Nearest" },
-			{ "<leader>vl", "<cmd>lua require('neotest').run.run_last()<cr>", desc = "Run Last" },
-			{ "<leader>vs", "<cmd>lua require('neotest').summary.toggle()<cr>", desc = "Toggle Summary" },
-			{
-				"<leader>vo",
-				"<cmd>lua require('neotest').output.open({ enter = true, auto_close = true })<cr>",
-				desc = "Show Output",
-			},
-			{ "<leader>vO", "<cmd>lua require('neotest').output_panel.toggle()<cr>", desc = "Toggle Output Panel" },
-			{ "<leader>vS", "<cmd>lua require('neotest').run.stop()<cr>", desc = "Stop" },
+			-- Neotest is currently disabled; keys are registered by the plugin's own
+			-- spec when re-enabled. No declarations here.
 
 			{ "<leader>M", group = "Makers" },
 			{ "<leader>Mg", group = "Groups" },
@@ -279,8 +243,6 @@ return {
 			-- LSP
 			{ "<leader>k", group = "LSP" },
 			{ "<leader>kt", desc = "Toggle Signature" },
-			{ "<leader>kh", desc = "Hover LSP Info" },
-			{ "<leader>kq", desc = "Quit LSP Floating Windows" },
 			{ "<leader>kr", "<cmd>FzfLua lsp_references<cr>", desc = "References" },
 			{ "<leader>ki", "<cmd>FzfLua lsp_incoming_calls<cr>", desc = "Incoming Calls" },
 			{ "<leader>ko", "<cmd>FzfLua lsp_outgoing_calls<cr>", desc = "Outgoing Calls" },

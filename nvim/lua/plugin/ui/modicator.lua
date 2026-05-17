@@ -1,7 +1,6 @@
 return {
 	"mawkler/modicator.nvim",
 	event = { "BufReadPre", "BufNewFile" },
-	dependencies = "mawkler/onedark.nvim", -- Add your colorscheme plugin here
 	init = function()
 		-- These are required for Modicator to work
 		vim.o.cursorline = true
