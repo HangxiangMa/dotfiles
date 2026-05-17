@@ -1,6 +1,11 @@
 return {
 	"andrewferrier/wrapping.nvim",
-	event = { "BufReadPre", "BufNewFile" },
+	ft = { "asciidoc", "gitcommit", "mail", "markdown", "rst", "tex", "text" },
+	keys = {
+		{ "<leader>fRs", desc = "Soft Wrap Mode" },
+		{ "<leader>fRh", desc = "Hard Wrap Mode" },
+		{ "<leader>fRt", desc = "Toggle Wrap Mode" },
+	},
 	opts = {
 		softener = { markdown = true },
 		-- set own mapping in 'which-key.lua'
@@ -17,7 +22,4 @@ return {
 			"text",
 		},
 	},
-	config = function(_, opts)
-		require("wrapping").setup(opts)
-	end,
 }

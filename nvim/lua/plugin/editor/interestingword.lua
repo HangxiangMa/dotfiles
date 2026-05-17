@@ -1,6 +1,11 @@
 return {
 	"Mr-LLLLL/interestingwords.nvim",
-	event = { "BufReadPre", "BufNewFile" },
+	keys = {
+		{ "<leader><leader>m", mode = { "n", "v" }, desc = "Search interesting word" },
+		{ "<leader><leader>M", desc = "Cancel search" },
+		{ "<leader><leader>k", mode = { "n", "v" }, desc = "Color interesting word" },
+		{ "<leader><leader>K", desc = "Cancel colors" },
+	},
 	config = function()
 		require("interestingwords").setup({
 			colors = { "#e67e80", "#bfa3df", "#6cbbda", "#dfdb72", "#a4c5ea", "#9999ea", "#a7c080" },

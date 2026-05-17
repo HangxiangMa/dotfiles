@@ -27,9 +27,7 @@ return {
 		},
 		-- only matched patterns will load this extension
 		event = "VeryLazy",
-		build = {
-			check_global(),
-		},
+		build = check_global,
 		opts = {
 			-- USE EMPTY FOR DEFAULT OPTIONS
 			-- DEFAULTS ARE LISTED BELOW
