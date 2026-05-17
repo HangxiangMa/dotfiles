@@ -1,0 +1,5 @@
+require("lazy-init")
+require("core.autocmds")
+require("core.keybindings")
+require("syntax.c").setup()
+require("syntax.cpp").setup()
