@@ -1,6 +1,6 @@
 local function virtlocation()
-	local line = vim.fn.line('.')
-	local vcol = vim.fn.virtcol('.')
+	local line = vim.fn.line(".")
+	local vcol = vim.fn.virtcol(".")
 	local mode = vim.fn.mode()
 	local select_info = ""
 
@@ -19,7 +19,7 @@ local function virtlocation()
 		local count = 0
 		local line_count = end_line - start_line + 1
 
-		if mode == 'V' then
+		if mode == "V" then
 			-- Visual Line Mode
 			local lines = vim.fn.getline(start_line, end_line)
 			for _, text in ipairs(lines) do
@@ -64,7 +64,6 @@ local function virtlocation()
 
 	return select_info
 end
-
 
 -- status bar
 return {
@@ -123,9 +122,10 @@ return {
 						"encoding",
 						fmt = function(str)
 							return string.upper(str)
-						end
-					}
-					, "fileformat", "filetype"
+						end,
+					},
+					"fileformat",
+					"filetype",
 				},
 				lualine_y = { "progress" },
 				lualine_z = { virtlocation, { "datetime", style = " %H:%M" } },

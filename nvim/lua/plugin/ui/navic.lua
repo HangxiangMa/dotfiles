@@ -9,5 +9,5 @@ return {
 		},
 		highlight = true,
 		lazy_update_context = false,
-	}
+	},
 }

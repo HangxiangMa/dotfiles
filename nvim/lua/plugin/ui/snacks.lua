@@ -21,7 +21,9 @@ return {
 	keys = {
 		{
 			"<leader>fo",
-			function() require("snacks").picker.smart() end,
+			function()
+				require("snacks").picker.smart()
+			end,
 			desc = "Smart Open (frecency)",
 		},
 		{
