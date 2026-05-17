@@ -1,10 +1,7 @@
 local function check_lazygit()
 	local crisp = require("core.crisp")
 	if vim.fn.executable("lazygit") ~= 1 then
-		crisp.warn(
-			"Package 'lazygit' not installed. Run 'requirements.sh' to install it.",
-			"lazygit"
-		)
+		crisp.warn("Package 'lazygit' not installed. Run 'requirements.sh' to install it.", "lazygit")
 	end
 end
 

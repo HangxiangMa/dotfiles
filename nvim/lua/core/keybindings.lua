@@ -56,4 +56,3 @@ keymap.set("n", "<C-Up>", ":resize -2<CR>", opts)
 	end
 	-- print(string.format("Closed %d windows: %s", #closed_windows, vim.inspect(closed_windows)))
 end) ]]
-
