@@ -11,7 +11,9 @@ return {
 		-- so it can take over from netrw. Otherwise it stays lazy.
 		lazy = (function()
 			local argv = vim.fn.argv()
-			if #argv ~= 1 then return true end
+			if #argv ~= 1 then
+				return true
+			end
 			local stat = (vim.uv or vim.loop).fs_stat(argv[1])
 			return not (stat and stat.type == "directory")
 		end)(),
@@ -40,7 +42,10 @@ return {
 
 			local api = require("nvim-tree.api")
 			vim.keymap.set("n", "g?", api.tree.toggle_help, {
-				desc = "nvim-tree: Help", noremap = true, silent = true, nowait = true,
+				desc = "nvim-tree: Help",
+				noremap = true,
+				silent = true,
+				nowait = true,
 			})
 		end,
 	},
