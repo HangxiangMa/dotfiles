@@ -19,7 +19,7 @@ return {
 				lua = { "stylua" },
 				python = { "black" },
 				bash = { "shfmt" },
-				cmake = { "cmake" },
+				cmake = { "cmake_format" },
 				cpp = { "clang-format" },
 				c = { "clang-format" },
 				-- Use the "*" filetype to run formatters on all filetypes.
