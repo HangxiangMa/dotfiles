@@ -1,6 +1,12 @@
 return {
 	"sindrets/diffview.nvim",
-	event = "BufReadPre",
-	opt = {},
-    -- TODO: 
+	cmd = {
+		"DiffviewOpen",
+		"DiffviewFileHistory",
+		"DiffviewClose",
+		"DiffviewToggleFiles",
+		"DiffviewFocusFiles",
+		"DiffviewRefresh",
+	},
+	opts = {},
 }

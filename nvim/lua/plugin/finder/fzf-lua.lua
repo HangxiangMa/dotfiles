@@ -8,7 +8,6 @@ return {
 			{ "junegunn/fzf", name = "fzf", build = "./install --bin" },
 			{ "nvim-tree/nvim-web-devicons", lazy = false },
 		},
-		event = "VeryLazy",
 		-- fzf is installed under lazy's plugin dir; prepend its bin/ to $PATH
 		-- so fzf-lua (and :checkhealth) can find the binary without relying on
 		-- a system-wide install.
