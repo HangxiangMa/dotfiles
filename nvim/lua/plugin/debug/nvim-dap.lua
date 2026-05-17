@@ -64,6 +64,7 @@ return {
 			},
 		},
 		keys = {
+			{ "<leader>d", "", desc = "+debug" },
 			{
 				"<leader>dB",
 				function()

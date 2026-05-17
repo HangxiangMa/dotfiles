@@ -5,14 +5,14 @@
 --   custom    - module under plugin.lsp.server.* that does its own setup
 --               (e.g. clangd, rust). When set, we never call vim.lsp.enable here.
 local SERVERS = {
-	bashls   = { mason = "bash-language-server",  exe = "bash-language-server" },
-	clangd   = { mason = "clangd",                exe = "clangd",               custom = "clangd" },
-	cmake    = { mason = "cmake-language-server", exe = "cmake-language-server" },
-	lua_ls   = { mason = "lua-language-server",   exe = "lua-language-server" },
-	marksman = { mason = "marksman",              exe = "marksman" },
-	pyright  = { mason = "pyright",               exe = "pyright" },
+	bashls = { mason = "bash-language-server", exe = "bash-language-server" },
+	clangd = { mason = "clangd", exe = "clangd", custom = "clangd" },
+	cmake = { mason = "cmake-language-server", exe = "cmake-language-server" },
+	lua_ls = { mason = "lua-language-server", exe = "lua-language-server" },
+	marksman = { mason = "marksman", exe = "marksman" },
+	pyright = { mason = "pyright", exe = "pyright" },
 	rust_analyzer = { exe = "rust-analyzer", custom = "rust" }, -- installed via rustup, not mason
-	taplo    = { mason = "taplo",                 exe = "taplo" },
+	taplo = { mason = "taplo", exe = "taplo" },
 }
 
 -- Extra (non-server) tools mason should install for formatters/linters.
@@ -21,7 +21,7 @@ local MASON_TOOLS = {
 	"clang-format",
 	"cmakelang",
 	"codelldb",
-	"luaformatter",
+	"stylua",
 	"prettier",
 	"shfmt",
 }
@@ -122,15 +122,15 @@ return {
 				signs = {
 					text = {
 						[vim.diagnostic.severity.ERROR] = "󰅚 ",
-						[vim.diagnostic.severity.WARN]  = "󰀪 ",
-						[vim.diagnostic.severity.HINT]  = "󰌶 ",
-						[vim.diagnostic.severity.INFO]  = " ",
+						[vim.diagnostic.severity.WARN] = "󰀪 ",
+						[vim.diagnostic.severity.HINT] = "󰌶 ",
+						[vim.diagnostic.severity.INFO] = " ",
 					},
 					numhl = {
 						[vim.diagnostic.severity.ERROR] = "DiagnosticSignError",
-						[vim.diagnostic.severity.WARN]  = "DiagnosticSignWarn",
-						[vim.diagnostic.severity.HINT]  = "DiagnosticSignHint",
-						[vim.diagnostic.severity.INFO]  = "DiagnosticSignInfo",
+						[vim.diagnostic.severity.WARN] = "DiagnosticSignWarn",
+						[vim.diagnostic.severity.HINT] = "DiagnosticSignHint",
+						[vim.diagnostic.severity.INFO] = "DiagnosticSignInfo",
 					},
 				},
 				underline = true,
@@ -163,33 +163,35 @@ return {
 				group = vim.api.nvim_create_augroup("user_lsp_attach", { clear = true }),
 				callback = function(ev)
 					local client = vim.lsp.get_client_by_id(ev.data.client_id)
-					if not client then return end
+					if not client then
+						return
+					end
 
 					if client.name == "tsserver" or client.name == "rust_analyzer" then
 						client.server_capabilities.documentFormattingProvider = false
 					end
 
 					if client.server_capabilities.documentHighlightProvider then
-						local hl_group = vim.api.nvim_create_augroup(
-							"user_lsp_doc_highlight_" .. ev.buf, { clear = true }
-						)
+						local hl_group =
+							vim.api.nvim_create_augroup("user_lsp_doc_highlight_" .. ev.buf, { clear = true })
 						vim.api.nvim_create_autocmd("CursorHold", {
-							group = hl_group, buffer = ev.buf,
+							group = hl_group,
+							buffer = ev.buf,
 							callback = vim.lsp.buf.document_highlight,
 						})
 						vim.api.nvim_create_autocmd("CursorMoved", {
-							group = hl_group, buffer = ev.buf,
+							group = hl_group,
+							buffer = ev.buf,
 							callback = vim.lsp.buf.clear_references,
 						})
 					end
 
-					local ok, supported = pcall(client.supports_method, "textDocument/codeLens")
+					local ok, supported = pcall(client.supports_method, client, "textDocument/codeLens")
 					if ok and supported then
-						local cl_group = vim.api.nvim_create_augroup(
-							"user_lsp_codelens_" .. ev.buf, { clear = false }
-						)
+						local cl_group = vim.api.nvim_create_augroup("user_lsp_codelens_" .. ev.buf, { clear = false })
 						vim.api.nvim_create_autocmd({ "BufEnter", "InsertLeave" }, {
-							group = cl_group, buffer = ev.buf,
+							group = cl_group,
+							buffer = ev.buf,
 							callback = function()
 								if vim.api.nvim_buf_is_loaded(ev.buf) and vim.api.nvim_buf_is_valid(ev.buf) then
 									vim.lsp.codelens.refresh({ bufnr = ev.buf })
@@ -224,7 +226,7 @@ return {
 		branch = "main",
 		opts = {
 			code_action = { keys = { quit = "q", prev = "k", next = "j", exec = "<CR>" } },
-			hover       = { keys = { prev = "k", next = "j", exec = "<CR>" } },
+			hover = { keys = { prev = "k", next = "j", exec = "<CR>" } },
 		},
 	},
 }
