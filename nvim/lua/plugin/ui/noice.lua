@@ -20,7 +20,8 @@ return {
 				override = {
 					["vim.lsp.util.convert_input_to_markdown_lines"] = true,
 					["vim.lsp.util.stylize_markdown"] = true,
-					["cmp.entry.get_documentation"] = true, -- requires hrsh7th/nvim-cmp
+					-- blink.cmp does its own popup rendering, so the cmp.entry
+					-- override that used to live here is no longer needed.
 				},
 				signature = {
 					enabled = false,
