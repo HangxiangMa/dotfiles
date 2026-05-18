@@ -1,0 +1,19 @@
+# Claude Code local settings (machine-specific paths, permissions)
+.claude/
+
+# Editor swap / backup files
+*.swp
+*.swo
+*~
+.netrwhist
+Session.vim
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Lua bytecode
+*.luac
