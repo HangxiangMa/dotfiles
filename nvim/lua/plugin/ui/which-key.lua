@@ -286,6 +286,18 @@ return {
 			-- visual <leader>r is a real keymap registered by grug-far.lua;
 			-- no group declaration needed here.
 
+			-- Tmux / Slime / Session snapshot
+			{ "<leader>s", group = "Tmux/Session" },
+			{ "<leader>ss", desc = "Slime: send (motion / selection)", mode = { "n", "x" } },
+			{ "<leader>sl", desc = "Slime: send line" },
+			{ "<leader>sp", desc = "Slime: send paragraph" },
+			{ "<leader>sc", desc = "Slime: configure target pane" },
+			{ "<leader>sk", "<cmd>TmuxCapture<CR>", desc = "Capture tmux pane → quickfix" },
+			{ "<leader>sr", desc = "Session: restore for cwd" },
+			{ "<leader>sR", desc = "Session: pick from list" },
+			{ "<leader>sL", desc = "Session: restore last" },
+			{ "<leader>sd", desc = "Session: stop saving" },
+
 			-- Yank ring (yanky.nvim)
 			{ "<leader>y", group = "Yank" },
 			{ "<leader>yp", desc = "Yank History" },

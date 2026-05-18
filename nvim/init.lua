@@ -1,5 +1,6 @@
 require("lazy-init")
 require("core.autocmds")
 require("core.keybindings")
+require("core.tmux-capture")
 require("syntax.c").setup()
 require("syntax.cpp").setup()
