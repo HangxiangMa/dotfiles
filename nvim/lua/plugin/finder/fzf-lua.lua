@@ -23,15 +23,27 @@ return {
 			local config = fzf.config
 			local actions = fzf.actions
 
-			-- Quickfix
+			-- Result list / quickfix / paging (fzf process side)
 			config.defaults.keymap.fzf["ctrl-q"] = "select-all+accept"
 			config.defaults.keymap.fzf["ctrl-u"] = "half-page-up"
 			config.defaults.keymap.fzf["ctrl-d"] = "half-page-down"
 			config.defaults.keymap.fzf["ctrl-x"] = "jump"
 			config.defaults.keymap.fzf["ctrl-f"] = "preview-page-down"
 			config.defaults.keymap.fzf["ctrl-b"] = "preview-page-up"
+			-- High-value extras (fzf process side)
+			config.defaults.keymap.fzf["ctrl-g"] = "toggle-preview"
+			config.defaults.keymap.fzf["ctrl-l"] = "clear-query"
+			config.defaults.keymap.fzf["alt-a"] = "toggle-all"
+			config.defaults.keymap.fzf["alt-d"] = "deselect-all"
+			-- Builtin (neovim-side) previewer mirrors
 			config.defaults.keymap.builtin["<c-f>"] = "preview-page-down"
 			config.defaults.keymap.builtin["<c-b>"] = "preview-page-up"
+			config.defaults.keymap.builtin["<c-g>"] = "toggle-preview"
+			-- Help window: <F1> is default; add <C-/> as a more reachable alias.
+			-- Most terminals send the same byte for <C-?> and <C-/>, so this
+			-- covers both physical chords in practice.
+			config.defaults.keymap.builtin["<F1>"] = "toggle-help"
+			config.defaults.keymap.builtin["<c-/>"] = "toggle-help"
 			-- Trouble
 			config.defaults.actions.files["ctrl-t"] = require("trouble.sources.fzf").actions.open
 
@@ -164,6 +176,22 @@ return {
 							if vim.api.nvim_win_is_valid(win) then
 								pcall(vim.api.nvim_win_close, win, true)
 							end
+						end)
+					end
+				end,
+			})
+
+			-- Force insert (terminal) mode whenever an fzf buffer becomes
+			-- active. Other plugins (e.g. toggleterm) install global TermOpen
+			-- handlers and `persist_mode` state that can leave the fzf float
+			-- in normal mode, requiring an extra `i` before typing.
+			vim.api.nvim_create_autocmd({ "FileType", "BufEnter", "WinEnter" }, {
+				group = vim.api.nvim_create_augroup("user_fzf_startinsert", { clear = true }),
+				pattern = "*",
+				callback = function()
+					if vim.bo.filetype == "fzf" then
+						vim.schedule(function()
+							vim.cmd("startinsert")
 						end)
 					end
 				end,
