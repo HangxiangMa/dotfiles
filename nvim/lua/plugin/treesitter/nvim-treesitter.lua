@@ -1,9 +1,13 @@
 return {
 	"nvim-treesitter/nvim-treesitter",
+	-- Pin to master: upstream main has dropped the legacy `configs.lua`
+	-- module that this config still uses. Stay on master until we migrate
+	-- to the new API.
+	branch = "master",
 	build = ":TSUpdate",
 	event = { "BufReadPre", "BufNewFile" },
 	dependencies = {
-		"nvim-treesitter/nvim-treesitter-textobjects",
+		{ "nvim-treesitter/nvim-treesitter-textobjects", branch = "master" },
 	},
 	config = function()
 		local crisp = require("core.crisp")
