@@ -25,20 +25,19 @@ return {
 				always_show_bufferline = false,
 			},
 		})
-		-- Buffer/Tab navigation lives under <leader>B*; numbered jumps
-		-- (<leader>B1..5) and the arena toggle (<leader>Bm) are declared in
-		-- which-key.lua. Lowercase <leader>b is reserved for nvim-spider's
-		-- backward word motion, and <leader>t* is reserved for terminals.
+		-- Buffer/Tab navigation lives under <leader>t*; numbered jumps
+		-- (<leader>t1..5) and the arena toggle (<leader>tm) are declared
+		-- in which-key.lua. Terminal toggles use <leader>T*.
 		local map = function(lhs, rhs)
 			vim.api.nvim_set_keymap("n", lhs, rhs, { noremap = true, silent = true })
 		end
-		map("<leader>Bn", ":BufferLineCycleNext<CR>")
-		map("<leader>Bp", ":BufferLineCyclePrev<CR>")
-		map("<leader>BP", ":BufferLinePick<CR>")
-		map("<leader>Bd", ":bdelete %<CR>")
-		map("<leader>Bcp", ":BufferLinePickClose<CR>")
-		map("<leader>Bco", ":BufferLineCloseLeft<CR>:BufferLineCloseRight<CR>")
-		map("<leader>Bcl", ":BufferLineCloseLeft<CR>")
-		map("<leader>Bcr", ":BufferLineCloseRight<CR>")
+		map("<leader>tn", ":BufferLineCycleNext<CR>")
+		map("<leader>tp", ":BufferLineCyclePrev<CR>")
+		map("<leader>tP", ":BufferLinePick<CR>")
+		map("<leader>td", ":bdelete %<CR>")
+		map("<leader>tcp", ":BufferLinePickClose<CR>")
+		map("<leader>tco", ":BufferLineCloseLeft<CR>:BufferLineCloseRight<CR>")
+		map("<leader>tcl", ":BufferLineCloseLeft<CR>")
+		map("<leader>tcr", ":BufferLineCloseRight<CR>")
 	end,
 }
