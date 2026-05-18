@@ -65,6 +65,46 @@ return {
 			{ "<leader><leader>s", desc = "Trim Trailing Whitespace" },
 			{ "<leader><leader>l", desc = "Trim Trailing Empty Lines" },
 
+			-- Treesitter textobjects: select (operator-pending + visual)
+			{ "af", desc = "Function (outer)", mode = { "o", "x" } },
+			{ "if", desc = "Function (inner)", mode = { "o", "x" } },
+			{ "ac", desc = "Class (outer)", mode = { "o", "x" } },
+			{ "ic", desc = "Class (inner)", mode = { "o", "x" } },
+			{ "aa", desc = "Argument (outer)", mode = { "o", "x" } },
+			{ "ia", desc = "Argument (inner)", mode = { "o", "x" } },
+			{ "a/", desc = "Comment (outer)", mode = { "o", "x" } },
+			{ "i/", desc = "Comment (inner)", mode = { "o", "x" } },
+			-- Treesitter textobjects: move
+			{ "]f", desc = "Next function start" },
+			{ "[f", desc = "Prev function start" },
+			{ "]F", desc = "Next function end" },
+			{ "[F", desc = "Prev function end" },
+			{ "]c", desc = "Next class start" },
+			{ "[c", desc = "Prev class start" },
+			{ "]C", desc = "Next class end" },
+			{ "[C", desc = "Prev class end" },
+			{ "]a", desc = "Next argument" },
+			{ "[a", desc = "Prev argument" },
+
+			-- git-conflict: act on conflict markers in any buffer
+			{ "co", desc = "Conflict: ours" },
+			{ "ct", desc = "Conflict: theirs" },
+			{ "cb", desc = "Conflict: both" },
+			{ "c0", desc = "Conflict: none" },
+			{ "]x", desc = "Conflict: next" },
+			{ "[x", desc = "Conflict: prev" },
+
+			-- Yanky put / cycle
+			{ "y", desc = "Yank", mode = { "n", "x" } },
+			{ "p", desc = "Put after", mode = { "n", "x" } },
+			{ "P", desc = "Put before", mode = { "n", "x" } },
+			{ "gp", desc = "Put after (cursor)", mode = { "n", "x" } },
+			{ "gP", desc = "Put before (cursor)", mode = { "n", "x" } },
+			{ "<C-n>", desc = "Yank ring forward" },
+			{ "<C-p>", desc = "Yank ring backward" },
+			{ "]p", desc = "Put indented after (linewise)" },
+			{ "[p", desc = "Put indented before (linewise)" },
+
 			-- vim basic
 			{ "<leader>nh", desc = "No Highlights", hidden = true },
 			{ "<leader>q", desc = "Quit", hidden = true },
@@ -111,25 +151,24 @@ return {
 			-- yazi
 			{ "<leader>-", desc = "Yazi" },
 
-			-- bufferline
-			{ "<leader>1", "<cmd>BufferLineGoToBuffer 1<CR>", desc = "Goto Tab1" },
-			{ "<leader>2", "<cmd>BufferLineGoToBuffer 2<CR>", desc = "Goto Tab2" },
-			{ "<leader>3", "<cmd>BufferLineGoToBuffer 3<CR>", desc = "Goto Tab3" },
-			{ "<leader>4", "<cmd>BufferLineGoToBuffer 4<CR>", desc = "Goto Tab4" },
-			{ "<leader>5", "<cmd>BufferLineGoToBuffer 5<CR>", desc = "Goto Tab5" },
-			-- bufferline - Tab
-			{ "<leader>tj", desc = "Goto Next Tab" },
-			{ "<leader>tk", desc = "Goto Previous Tab" },
-			{ "<leader>tp", desc = "Pick Tab" },
-			{ "<leader>td", desc = "Close Tab" },
-			-- bufferline - Close Tab
-			{ "<leader>tc", group = "Close" },
-			{ "<leader>tcp", desc = "Pick And Close Tab" },
-			{ "<leader>tco", desc = "Close Other Tabs" },
-			{ "<leader>tcl", desc = "Close Left Tab" },
-			{ "<leader>tcr", desc = "Close Right Tab" },
-			-- arena
-			{ "<leader>tm", "<cmd>ArenaToggle<cr>", desc = "Toggle Buffer Menu" },
+			-- Buffer/Tab — uppercase B prefix so it doesn't shadow
+			-- nvim-spider's lowercase <leader>b motion.
+			{ "<leader>B", group = "Buffer" },
+			{ "<leader>B1", "<cmd>BufferLineGoToBuffer 1<CR>", desc = "Goto Buffer 1" },
+			{ "<leader>B2", "<cmd>BufferLineGoToBuffer 2<CR>", desc = "Goto Buffer 2" },
+			{ "<leader>B3", "<cmd>BufferLineGoToBuffer 3<CR>", desc = "Goto Buffer 3" },
+			{ "<leader>B4", "<cmd>BufferLineGoToBuffer 4<CR>", desc = "Goto Buffer 4" },
+			{ "<leader>B5", "<cmd>BufferLineGoToBuffer 5<CR>", desc = "Goto Buffer 5" },
+			{ "<leader>Bn", desc = "Next Buffer" },
+			{ "<leader>Bp", desc = "Previous Buffer" },
+			{ "<leader>BP", desc = "Pick Buffer" },
+			{ "<leader>Bd", desc = "Close Buffer" },
+			{ "<leader>Bc", group = "Close" },
+			{ "<leader>Bcp", desc = "Pick and Close" },
+			{ "<leader>Bco", desc = "Close Others" },
+			{ "<leader>Bcl", desc = "Close Left" },
+			{ "<leader>Bcr", desc = "Close Right" },
+			{ "<leader>Bm", "<cmd>ArenaToggle<cr>", desc = "Toggle Buffer Menu" },
 
 			-- File
 			{ "<leader>f", group = "File" },
@@ -168,19 +207,19 @@ return {
 			{ "<leader>fss", "<cmd>FzfLua lsp_document_symbols<cr>", desc = "Document Symbols" },
 			{ "<leader>fsS", "<cmd>FzfLua lsp_live_workspace_symbols<cr>", desc = "Workspace Symbols" },
 			{ "<leader>fsr", "<cmd>FzfLua resume<cr>", desc = "Resume Last Picker" },
-			-- File -> Wrapping
-			{ "<leader>fR", group = "Wrapping" },
-			{ "<leader>fRs", "<cmd>lua require('wrapping').soft_wrap_mode()<cr>", desc = "Soft Wrap Mode" },
-			{ "<leader>fRh", "<cmd>lua require('wrapping').hard_wrap_mode()<cr>", desc = "Hard Wrap Mode" },
-			{ "<leader>fRt", "<cmd>lua require('wrapping').toggle_wrap_mode()<cr>", desc = "Toggle Wrap Mode" },
+			-- File -> Wrapping (W to free up R for grug-far style "Replace")
+			{ "<leader>fW", group = "Wrapping" },
+			{ "<leader>fWs", "<cmd>lua require('wrapping').soft_wrap_mode()<cr>", desc = "Soft Wrap Mode" },
+			{ "<leader>fWh", "<cmd>lua require('wrapping').hard_wrap_mode()<cr>", desc = "Hard Wrap Mode" },
+			{ "<leader>fWt", "<cmd>lua require('wrapping').toggle_wrap_mode()<cr>", desc = "Toggle Wrap Mode" },
 			-- File -> linter
 			{ "<leader>fL", "<cmd>lua require('lint').try_lint()<cr>", desc = "Trigger linting" },
 
-			-- Terminal
-			{ "<leader>t", group = "Terminal/Tab" },
+			-- Terminal — buffer/tab keys moved to <leader>B*
+			{ "<leader>t", group = "Terminal" },
 			{ "<leader>tf", desc = "Terminal Float" },
 			{ "<leader>th", desc = "Terminal Horizontal" },
-			{ "<leader>tv", desc = "Terminal Vertical " },
+			{ "<leader>tv", desc = "Terminal Vertical" },
 			{ "<leader>tg", desc = "Lazy Git" },
 			{ "<leader>tn", desc = "ncdu" },
 			{ "<leader>tt", desc = "htop" },
@@ -202,27 +241,27 @@ return {
 			{ "<leader>gc", "<cmd>FzfLua git_commits<cr>", desc = "Checkout commit" },
 			{ "<leader>gd", "<cmd>Gitsigns diffthis HEAD<cr>", desc = "Diffthis" },
 
-			-- diagonostics
-			{ "<leader>a", group = "Diagonostics" },
+			-- diagnostics
+			{ "<leader>a", group = "Diagnostics" },
 			{
 				"<leader>ao",
 				"<cmd>lua vim.diagnostic.open_float(nil, {focus=false, scope='cursor', border='rounded'})<cr>",
-				desc = "Show Diagonostics",
+				desc = "Show Diagnostics",
 			},
 			{
 				"<leader>ap",
 				"<cmd>lua vim.diagnostic.goto_prev({float={source=true, border='rounded'}})<cr>",
-				desc = "Previous Diagonostics",
+				desc = "Previous Diagnostics",
 			},
 			{
 				"<leader>an",
 				"<cmd>lua vim.diagnostic.goto_next({float={source=true, border='rounded'}})<cr>",
-				desc = "Next Diagonostics",
+				desc = "Next Diagnostics",
 			},
 			{
 				"<leader>al",
 				"<cmd>lua vim.diagnostic.setloclist()<cr>",
-				desc = "Diagonostics Location",
+				desc = "Diagnostics Location",
 			},
 
 			{ "<leader>ac", "<cmd>FzfLua diagnostics_document<cr>", desc = "Diagnostics(Buffer)" },
@@ -236,6 +275,27 @@ return {
 
 			{ "<leader>M", group = "Makers" },
 			{ "<leader>Mg", group = "Groups" },
+
+			-- Replace (grug-far)
+			{ "<leader>r", group = "Replace" },
+			{ "<leader>rr", desc = "Find/Replace (Project)" },
+			{ "<leader>rw", desc = "Find/Replace (cword)" },
+			{ "<leader>rb", desc = "Find/Replace (Buffer)" },
+			-- visual <leader>r is a real keymap registered by grug-far.lua;
+			-- no group declaration needed here.
+
+			-- Yank ring (yanky.nvim)
+			{ "<leader>y", group = "Yank" },
+			{ "<leader>yp", desc = "Yank History" },
+
+			-- Code: a per-language sub-tree. Hosts treesitter swap, Rust
+			-- (rustaceanvim) and Crates so all language-server-driven keys
+			-- live under one prefix.
+			{ "<leader>c", group = "Code" },
+			{ "<leader>cn", group = "Swap-Next" },
+			{ "<leader>cna", desc = "Swap parameter forward" },
+			{ "<leader>cp", group = "Swap-Prev" },
+			{ "<leader>cpa", desc = "Swap parameter backward" },
 
 			-- CscopeMaps registers <leader>m* itself with which-key (group "cscope").
 			-- Don't redeclare here; doing so triggers a duplicate-mapping warning.
@@ -253,63 +313,62 @@ return {
 			{ "<leader>kD", "<cmd>FzfLua lsp_definitions<cr>", desc = "Definitions" },
 			{ "<leader>kT", "<cmd>FzfLua lsp_typedefs<cr>", desc = "Type Definitions" },
 
-			-- Rust
-			{ "<leader>R", group = "Rust" },
-			{ "<leader>RD", "<cmd>RustLsp debuggables<cr>", desc = "Rust Debuggables" },
-			{ "<leader>RR", "<cmd>RustLsp runnables<cr>", desc = "Rust Runnables" },
-			{ "<leader>RT", "<cmd>RustLsp testables<cr>", desc = "Rust Testables" },
-			{ "<leader>Re", "<cmd>RustLsp expandMacro<cr>", desc = "Expand Macro" },
-			{ "<leader>Rb", "<cmd>RustLsp rebuildProcMacros<cr>", desc = "Rebuild ProcMacros" },
-			{ "<leader>Ru", "<cmd>RustLsp moveItem up<cr>", desc = "Move item up" },
-			{ "<leader>Rd", "<cmd>RustLsp moveItem down<cr>", desc = "Move item down" },
-			{ "<leader>Ra", "<cmd>RustLsp codeAction<cr>", desc = "Code Action" },
-			{ "<leader>Rh", "<cmd>RustLsp hover actions<cr>", desc = "Hover Actions" },
-			{ "<leader>Rn", "<cmd>RustLsp hover range<cr>", desc = "Hover Range" },
-			{ "<leader>RE", "<cmd>RustLsp explainError<cr>", desc = "Explain Error" },
-			{ "<leader>Rr", "<cmd>RustLsp renderDiagnostic<cr>", desc = "Render Diagnostic" },
-			{ "<leader>Ro", "<cmd>RustLsp openCargo<cr>", desc = "Open cargo" },
-			{ "<leader>RO", "<cmd>RustLsp openDocs<cr>", desc = "Open docs.rs documentation" },
-			{ "<leader>Rp", "<cmd>RustLsp parentModule<cr>", desc = "Rust parent module" },
-			{ "<leader>Rj", "<cmd>RustLsp joinLines<cr>", desc = "Join lines" },
-			{ "<leader>RS", "<cmd>RustLsp ssr<cr>", desc = "Structural search Replace" },
-			{ "<leader>Rg", "<cmd>RustLsp crateGraph<cr>", desc = "View create graph" },
-			{ "<leader>Rt", "<cmd>RustLsp syntaxTree<cr>", desc = "Rust syntax tree" },
-			{ "<leader>Rv", "<cmd>RustLsp view hir<cr>", desc = "View rust HIR" },
-			{ "<leader>RV", "<cmd>RustLsp vim mir<cr>", desc = "View rust MIR" },
-			-- Rust -> workspace symbol
-			{ "<leader>Rs", group = "WorkspaceSymbol" },
-			{ "<leader>Rst", "<cmd>RustLsp workspaceSymbol onlyTypes<cr>", desc = "Only type symbols" },
-			{ "<leader>Rsa", "<cmd>RustLsp workspaceSymbol allSymbols<cr>", desc = "Show all symbols" },
-			-- Rust -> FlyCheck
-			{ "<leader>Rf", group = "FlyCheck" },
-			{ "<leader>Rfr", "<cmd>RustLsp flyCheck run<cr>", desc = "Run check" },
-			{ "<leader>Rfc", "<cmd>RustLsp flyCheck clear<cr>", desc = "Clear check" },
-			{ "<leader>Rfn", "<cmd>RustLsp flyCheck cancel<cr>", desc = "Cancel check" },
-			-- Crates
-			{ "<leader>C", group = "Crates" },
-			{ "<leader>Ct", "<cmd>lua require('crates').toggle()<cr>", desc = "Toggle" },
-			{ "<leader>Cr", "<cmd>lua require('crates').reload()<cr>", desc = "Reload" },
-			{ "<leader>Cv", "<cmd>lua require('crates').show_versions_popup()<cr>", desc = "Show versions" },
-			{ "<leader>Cf", "<cmd>lua require('crates').show_features_popup()<cr>", desc = "Show features" },
-			{ "<leader>Cd", "<cmd>lua require('crates').show_dependencies_popup()<cr>", desc = "Show dependencies" },
-			{ "<leader>Ca", "<cmd>lua require('crates').update_all_crates()<cr>", desc = "Update all crates" },
-			{ "<leader>CA", "<cmd>lua require('crates').upgrade_all_crates()<cr>", desc = "Upgrade all crates" },
+			-- Code -> Rust (rustaceanvim)
+			{ "<leader>cR", group = "Rust" },
+			{ "<leader>cRD", "<cmd>RustLsp debuggables<cr>", desc = "Rust Debuggables" },
+			{ "<leader>cRR", "<cmd>RustLsp runnables<cr>", desc = "Rust Runnables" },
+			{ "<leader>cRT", "<cmd>RustLsp testables<cr>", desc = "Rust Testables" },
+			{ "<leader>cRe", "<cmd>RustLsp expandMacro<cr>", desc = "Expand Macro" },
+			{ "<leader>cRb", "<cmd>RustLsp rebuildProcMacros<cr>", desc = "Rebuild ProcMacros" },
+			{ "<leader>cRu", "<cmd>RustLsp moveItem up<cr>", desc = "Move item up" },
+			{ "<leader>cRd", "<cmd>RustLsp moveItem down<cr>", desc = "Move item down" },
+			{ "<leader>cRa", "<cmd>RustLsp codeAction<cr>", desc = "Code Action" },
+			{ "<leader>cRh", "<cmd>RustLsp hover actions<cr>", desc = "Hover Actions" },
+			{ "<leader>cRn", "<cmd>RustLsp hover range<cr>", desc = "Hover Range" },
+			{ "<leader>cRE", "<cmd>RustLsp explainError<cr>", desc = "Explain Error" },
+			{ "<leader>cRr", "<cmd>RustLsp renderDiagnostic<cr>", desc = "Render Diagnostic" },
+			{ "<leader>cRo", "<cmd>RustLsp openCargo<cr>", desc = "Open cargo" },
+			{ "<leader>cRO", "<cmd>RustLsp openDocs<cr>", desc = "Open docs.rs documentation" },
+			{ "<leader>cRp", "<cmd>RustLsp parentModule<cr>", desc = "Rust parent module" },
+			{ "<leader>cRj", "<cmd>RustLsp joinLines<cr>", desc = "Join lines" },
+			{ "<leader>cRS", "<cmd>RustLsp ssr<cr>", desc = "Structural search Replace" },
+			{ "<leader>cRg", "<cmd>RustLsp crateGraph<cr>", desc = "View crate graph" },
+			{ "<leader>cRt", "<cmd>RustLsp syntaxTree<cr>", desc = "Rust syntax tree" },
+			{ "<leader>cRv", "<cmd>RustLsp view hir<cr>", desc = "View rust HIR" },
+			{ "<leader>cRV", "<cmd>RustLsp vim mir<cr>", desc = "View rust MIR" },
+			{ "<leader>cRs", group = "WorkspaceSymbol" },
+			{ "<leader>cRst", "<cmd>RustLsp workspaceSymbol onlyTypes<cr>", desc = "Only type symbols" },
+			{ "<leader>cRsa", "<cmd>RustLsp workspaceSymbol allSymbols<cr>", desc = "Show all symbols" },
+			{ "<leader>cRf", group = "FlyCheck" },
+			{ "<leader>cRfr", "<cmd>RustLsp flyCheck run<cr>", desc = "Run check" },
+			{ "<leader>cRfc", "<cmd>RustLsp flyCheck clear<cr>", desc = "Clear check" },
+			{ "<leader>cRfn", "<cmd>RustLsp flyCheck cancel<cr>", desc = "Cancel check" },
+
+			-- Code -> Crates (Saecki/crates.nvim)
+			{ "<leader>cC", group = "Crates" },
+			{ "<leader>cCt", "<cmd>lua require('crates').toggle()<cr>", desc = "Toggle" },
+			{ "<leader>cCr", "<cmd>lua require('crates').reload()<cr>", desc = "Reload" },
+			{ "<leader>cCv", "<cmd>lua require('crates').show_versions_popup()<cr>", desc = "Show versions" },
+			{ "<leader>cCf", "<cmd>lua require('crates').show_features_popup()<cr>", desc = "Show features" },
+			{ "<leader>cCd", "<cmd>lua require('crates').show_dependencies_popup()<cr>", desc = "Show dependencies" },
+			{ "<leader>cCa", "<cmd>lua require('crates').update_all_crates()<cr>", desc = "Update all crates" },
+			{ "<leader>cCA", "<cmd>lua require('crates').upgrade_all_crates()<cr>", desc = "Upgrade all crates" },
 			{
-				"<leader>Cx",
+				"<leader>cCx",
 				"<cmd>lua require('crates').expand_plain_crate_to_inline_table()<cr>",
-				desc = "Expand plain create to inline table",
+				desc = "Expand plain crate to inline table",
 			},
 			{
-				"<leader>CX",
+				"<leader>cCX",
 				"<cmd>lua require('crates').extract_crate_into_table()<cr>",
-				desc = "Extract create into table",
+				desc = "Extract crate into table",
 			},
-			{ "<leader>CH", "<cmd>lua require('crates').open_homepage()<cr>", desc = "Open homepage" },
-			{ "<leader>CR", "<cmd>lua require('crates').open_repository()<cr>", desc = "Open repository" },
-			{ "<leader>CD", "<cmd>lua require('crates').open_documentation()<cr>", desc = "Open documentation" },
-			{ "<leader>CC", "<cmd>lua require('crates').open_crates_io()<cr>", desc = "Open crates io" },
-			{ "<leader>Cu", "<cmd>lua require('crates').update_crate()<cr>", desc = "Update crate" },
-			{ "<leader>CU", "<cmd>lua require('crates').upgrade_crate()<cr>", desc = "Upgrade crate" },
+			{ "<leader>cCH", "<cmd>lua require('crates').open_homepage()<cr>", desc = "Open homepage" },
+			{ "<leader>cCR", "<cmd>lua require('crates').open_repository()<cr>", desc = "Open repository" },
+			{ "<leader>cCD", "<cmd>lua require('crates').open_documentation()<cr>", desc = "Open documentation" },
+			{ "<leader>cCC", "<cmd>lua require('crates').open_crates_io()<cr>", desc = "Open crates io" },
+			{ "<leader>cCu", "<cmd>lua require('crates').update_crate()<cr>", desc = "Update crate" },
+			{ "<leader>cCU", "<cmd>lua require('crates').upgrade_crate()<cr>", desc = "Upgrade crate" },
 		})
 	end,
 }
