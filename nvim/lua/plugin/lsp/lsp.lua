@@ -107,7 +107,7 @@ return {
 		dependencies = {
 			"williamboman/mason.nvim",
 			"williamboman/mason-lspconfig.nvim",
-			"hrsh7th/cmp-nvim-lsp",
+			"saghen/blink.cmp",
 			"windwp/nvim-autopairs",
 		},
 		config = function()
@@ -145,11 +145,13 @@ return {
 				},
 			})
 
-			-- Default capabilities for every server (cmp + folding range for ufo).
+			-- Default capabilities for every server. blink.cmp injects its own
+			-- completion capabilities and merges with the default protocol
+			-- capabilities; ufo needs lineFoldingOnly on top.
 			local capabilities = vim.lsp.protocol.make_client_capabilities()
-			local ok_cmp, cmp_lsp = pcall(require, "cmp_nvim_lsp")
-			if ok_cmp then
-				capabilities = cmp_lsp.default_capabilities(capabilities)
+			local ok_blink, blink = pcall(require, "blink.cmp")
+			if ok_blink then
+				capabilities = blink.get_lsp_capabilities(capabilities)
 			end
 			capabilities.textDocument.foldingRange = {
 				dynamicRegistration = false,
