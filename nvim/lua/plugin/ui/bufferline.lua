@@ -25,28 +25,20 @@ return {
 				always_show_bufferline = false,
 			},
 		})
-		-- jump between buffers
-		-- config below keymaps in `which-key.lua`
-		-- <leader>1 to 9
-
-		-- switch to next/previous buffer
-		vim.api.nvim_set_keymap("n", "<leader>tj", ":BufferLineCycleNext<CR>", { noremap = true, silent = true })
-		vim.api.nvim_set_keymap("n", "<leader>tk", ":BufferLineCyclePrev<CR>", { noremap = true, silent = true })
-		-- select a specific tab
-		vim.api.nvim_set_keymap("n", "<leader>tp", ":BufferLinePick<CR>", { noremap = true, silent = true })
-		-- close current buffer
-		vim.api.nvim_set_keymap("n", "<leader>td", ":bdelete %<CR>", { noremap = true, silent = true })
-		-- select one buffer and close it
-		vim.api.nvim_set_keymap("n", "<leader>tcp", ":BufferLinePickClose<CR>", { noremap = true, silent = true })
-		-- close all buffer other than current one
-		vim.api.nvim_set_keymap(
-			"n",
-			"<leader>tco",
-			":BufferLineCloseLeft<CR>:BufferLineCloseRight<CR>",
-			{ noremap = true, silent = true }
-		)
-		-- close left/right buffer
-		vim.api.nvim_set_keymap("n", "<leader>tcl", ":BufferLineCloseLeft<CR>", { noremap = true, silent = true })
-		vim.api.nvim_set_keymap("n", "<leader>tcr", ":BufferLineCloseRight<CR>", { noremap = true, silent = true })
+		-- Buffer/Tab navigation lives under <leader>B*; numbered jumps
+		-- (<leader>B1..5) and the arena toggle (<leader>Bm) are declared in
+		-- which-key.lua. Lowercase <leader>b is reserved for nvim-spider's
+		-- backward word motion, and <leader>t* is reserved for terminals.
+		local map = function(lhs, rhs)
+			vim.api.nvim_set_keymap("n", lhs, rhs, { noremap = true, silent = true })
+		end
+		map("<leader>Bn", ":BufferLineCycleNext<CR>")
+		map("<leader>Bp", ":BufferLineCyclePrev<CR>")
+		map("<leader>BP", ":BufferLinePick<CR>")
+		map("<leader>Bd", ":bdelete %<CR>")
+		map("<leader>Bcp", ":BufferLinePickClose<CR>")
+		map("<leader>Bco", ":BufferLineCloseLeft<CR>:BufferLineCloseRight<CR>")
+		map("<leader>Bcl", ":BufferLineCloseLeft<CR>")
+		map("<leader>Bcr", ":BufferLineCloseRight<CR>")
 	end,
 }
