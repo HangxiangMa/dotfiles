@@ -151,24 +151,25 @@ return {
 			-- yazi
 			{ "<leader>-", desc = "Yazi" },
 
-			-- Buffer/Tab — uppercase B prefix so it doesn't shadow
-			-- nvim-spider's lowercase <leader>b motion.
-			{ "<leader>B", group = "Buffer" },
-			{ "<leader>B1", "<cmd>BufferLineGoToBuffer 1<CR>", desc = "Goto Buffer 1" },
-			{ "<leader>B2", "<cmd>BufferLineGoToBuffer 2<CR>", desc = "Goto Buffer 2" },
-			{ "<leader>B3", "<cmd>BufferLineGoToBuffer 3<CR>", desc = "Goto Buffer 3" },
-			{ "<leader>B4", "<cmd>BufferLineGoToBuffer 4<CR>", desc = "Goto Buffer 4" },
-			{ "<leader>B5", "<cmd>BufferLineGoToBuffer 5<CR>", desc = "Goto Buffer 5" },
-			{ "<leader>Bn", desc = "Next Buffer" },
-			{ "<leader>Bp", desc = "Previous Buffer" },
-			{ "<leader>BP", desc = "Pick Buffer" },
-			{ "<leader>Bd", desc = "Close Buffer" },
-			{ "<leader>Bc", group = "Close" },
-			{ "<leader>Bcp", desc = "Pick and Close" },
-			{ "<leader>Bco", desc = "Close Others" },
-			{ "<leader>Bcl", desc = "Close Left" },
-			{ "<leader>Bcr", desc = "Close Right" },
-			{ "<leader>Bm", "<cmd>ArenaToggle<cr>", desc = "Toggle Buffer Menu" },
+			-- Buffer/Tab on lowercase <leader>t. Terminals are on
+			-- uppercase <leader>T to keep this prefix free for the
+			-- much more frequent buffer cycling.
+			{ "<leader>t", group = "Buffer/Tab" },
+			{ "<leader>t1", "<cmd>BufferLineGoToBuffer 1<CR>", desc = "Goto Buffer 1" },
+			{ "<leader>t2", "<cmd>BufferLineGoToBuffer 2<CR>", desc = "Goto Buffer 2" },
+			{ "<leader>t3", "<cmd>BufferLineGoToBuffer 3<CR>", desc = "Goto Buffer 3" },
+			{ "<leader>t4", "<cmd>BufferLineGoToBuffer 4<CR>", desc = "Goto Buffer 4" },
+			{ "<leader>t5", "<cmd>BufferLineGoToBuffer 5<CR>", desc = "Goto Buffer 5" },
+			{ "<leader>tn", desc = "Next Buffer" },
+			{ "<leader>tp", desc = "Previous Buffer" },
+			{ "<leader>tP", desc = "Pick Buffer" },
+			{ "<leader>td", desc = "Close Buffer" },
+			{ "<leader>tc", group = "Close" },
+			{ "<leader>tcp", desc = "Pick and Close" },
+			{ "<leader>tco", desc = "Close Others" },
+			{ "<leader>tcl", desc = "Close Left" },
+			{ "<leader>tcr", desc = "Close Right" },
+			{ "<leader>tm", "<cmd>ArenaToggle<cr>", desc = "Toggle Buffer Menu" },
 
 			-- File
 			{ "<leader>f", group = "File" },
@@ -215,14 +216,15 @@ return {
 			-- File -> linter
 			{ "<leader>fL", "<cmd>lua require('lint').try_lint()<cr>", desc = "Trigger linting" },
 
-			-- Terminal — buffer/tab keys moved to <leader>B*
-			{ "<leader>t", group = "Terminal" },
-			{ "<leader>tf", desc = "Terminal Float" },
-			{ "<leader>th", desc = "Terminal Horizontal" },
-			{ "<leader>tv", desc = "Terminal Vertical" },
-			{ "<leader>tg", desc = "Lazy Git" },
-			{ "<leader>tn", desc = "ncdu" },
-			{ "<leader>tt", desc = "htop" },
+			-- Terminal — uppercase T so the high-traffic <leader>t
+			-- prefix stays available for buffer/tab navigation above.
+			{ "<leader>T", group = "Terminal" },
+			{ "<leader>Tf", desc = "Terminal Float" },
+			{ "<leader>Th", desc = "Terminal Horizontal" },
+			{ "<leader>Tv", desc = "Terminal Vertical" },
+			{ "<leader>Tg", desc = "Lazy Git" },
+			{ "<leader>Tn", desc = "ncdu" },
+			{ "<leader>Tt", desc = "htop" },
 
 			-- Git
 			{ "<leader>g", group = "Git" },

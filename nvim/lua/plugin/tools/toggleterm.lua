@@ -63,21 +63,21 @@ return {
 		function _LAZYGIT_TOGGLE()
 			lazygit:toggle()
 		end
-		vim.api.nvim_set_keymap("n", "<leader>tg", "<cmd>lua _LAZYGIT_TOGGLE()<CR>", { noremap = true, silent = true })
+		vim.api.nvim_set_keymap("n", "<leader>Tg", "<cmd>lua _LAZYGIT_TOGGLE()<CR>", { noremap = true, silent = true })
 
 		-- ncdu
 		local ncdu = Terminal:new({ cmd = "ncdu", hidden = true })
 		function _NCDU_TOGGLE()
 			ncdu:toggle()
 		end
-		vim.api.nvim_set_keymap("n", "<leader>tn", "<cmd>lua _NCDU_TOGGLE()<CR>", { noremap = true, silent = true })
+		vim.api.nvim_set_keymap("n", "<leader>Tn", "<cmd>lua _NCDU_TOGGLE()<CR>", { noremap = true, silent = true })
 
 		-- htop
 		local htop = Terminal:new({ cmd = "htop", hidden = true })
 		function _HTOP_TOGGLE()
 			htop:toggle()
 		end
-		vim.api.nvim_set_keymap("n", "<leader>tt", "<cmd>lua _HTOP_TOGGLE()<CR>", { noremap = true, silent = true })
+		vim.api.nvim_set_keymap("n", "<leader>Tt", "<cmd>lua _HTOP_TOGGLE()<CR>", { noremap = true, silent = true })
 
 		local M = {}
 		local ta = Terminal:new({
@@ -122,8 +122,8 @@ return {
 			tb:close()
 			tc:open()
 		end
-		vim.keymap.set("n", "<leader>tf", M.toggleFloat, { silent = true, desc = "Terminal Float" })
-		vim.keymap.set("n", "<leader>tv", M.toggleVertical, { silent = true, desc = "Terminal Vertical" })
-		vim.keymap.set("n", "<leader>th", M.toggleHorizontal, { silent = true, desc = "Terminal Horizontal" })
+		vim.keymap.set("n", "<leader>Tf", M.toggleFloat, { silent = true, desc = "Terminal Float" })
+		vim.keymap.set("n", "<leader>Tv", M.toggleVertical, { silent = true, desc = "Terminal Vertical" })
+		vim.keymap.set("n", "<leader>Th", M.toggleHorizontal, { silent = true, desc = "Terminal Horizontal" })
 	end,
 }
