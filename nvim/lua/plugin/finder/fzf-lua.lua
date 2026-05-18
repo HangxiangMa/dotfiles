@@ -108,11 +108,19 @@ return {
 					})
 				end,
 				winopts = {
-					width = 0.8,
-					height = 0.8,
+					width = 0.85,
+					height = 0.82,
 					row = 0.5,
 					col = 0.5,
+					border = "rounded",
+					title_pos = "center",
 					preview = {
+						-- flex: switch between horizontal and vertical splits
+						-- automatically based on the available column count.
+						layout = "flex",
+						flip_columns = 120,
+						horizontal = "right:55%",
+						vertical = "down:45%",
 						scrollchars = { "┃", "" },
 					},
 				},
