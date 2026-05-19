@@ -104,17 +104,17 @@ show_help() {
 
 show_components() {
 	echo -e "${MAGENTA}[nvim]: Select component that you want to install (ARCH=${ARCH}):${RESET}"
-	echo -e "    1) neovim"
-	echo -e "    2) lazygit"
-	echo -e "    3) yazi"
-	echo -e "    4) bat-extras"
-	echo -e "    5) clang-tools"
-	echo -e "    6) lua_ls"
-	echo -e "    7) python3-venv"
-	echo -e "    8) debug-tools"
+	echo -e "    1) bat"
+	echo -e "    2) bat-extras"
+	echo -e "    3) clang-tools"
+	echo -e "    4) debug-tools"
+	echo -e "    5) fd"
+	echo -e "    6) lazygit"
+	echo -e "    7) lua_ls"
+	echo -e "    8) neovim"
 	echo -e "    9) nvim-config"
-	echo -e "   10) fd"
-	echo -e "   11) bat"
+	echo -e "   10) python3-venv"
+	echo -e "   11) yazi"
 }
 
 # Ask the user whether to escalate via sudo for the described action.
@@ -1172,17 +1172,17 @@ install_nvim_config() {
 select_component() {
 	read -r choice
 	case $choice in
-	1) install_nvim ;;
-	2) install_lazygit ;;
-	3) install_yazi ;;
-	4) install_bat_extra ;;
-	5) install_clang_tools ;;
-	6) install_lua_ls ;;
-	7) install_python3_venv ;;
-	8) install_debug_tools ;;
+	1) install_bat ;;
+	2) install_bat_extra ;;
+	3) install_clang_tools ;;
+	4) install_debug_tools ;;
+	5) install_fd ;;
+	6) install_lazygit ;;
+	7) install_lua_ls ;;
+	8) install_nvim ;;
 	9) install_nvim_config ;;
-	10) install_fd ;;
-	11) install_bat ;;
+	10) install_python3_venv ;;
+	11) install_yazi ;;
 	*)
 		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 11.${RESET}"
 		exit 1
@@ -1438,13 +1438,17 @@ _tui_menu() {
 _tui_checklist() {
 	local title="$1"; shift
 	local backend; backend="$(_tui_backend)"
+	# whiptail/dialog return selected tags as a single line of quoted,
+	# space-separated values: "nvim" "fd" "bat". Callers downstream parse
+	# one tag per line (matching the plain fallback below), so squeeze the
+	# output into that shape here rather than burdening every caller.
 	if [ "$backend" = "whiptail" ]; then
-		# whiptail --checklist needs ON/OFF strings.
 		whiptail --title "$title" --checklist "Space toggles, Enter confirms" 20 78 12 "$@" 3>&1 1>&2 2>&3 \
-			| tr -d '"'
+			| tr -d '"' | tr ' ' '\n' | sed '/^$/d'
 		return $?
 	elif [ "$backend" = "dialog" ]; then
-		dialog --title "$title" --checklist "" 20 78 12 "$@" 3>&1 1>&2 2>&3 | tr -d '"'
+		dialog --title "$title" --checklist "" 20 78 12 "$@" 3>&1 1>&2 2>&3 \
+			| tr -d '"' | tr ' ' '\n' | sed '/^$/d'
 		return $?
 	fi
 	# Plain fallback: print options with default state, ask comma-separated.
@@ -1520,9 +1524,17 @@ cmd_setup() {
 	[ -n "$MIGRATE_XDG_BASE" ] && echo -e "${CYAN}[setup] XDG base = ${MIGRATE_XDG_BASE}${RESET}"
 
 	# Prefix -------------------------------------------------------------
+	# When the user anchored XDG dirs under a custom base (typically because
+	# $HOME is quota-limited), default the tool prefix to the same anchor so
+	# binaries don't sneak back into $HOME/.local. Explicit input still wins.
+	local prefix_default="$DEFAULT_PATH"
+	if [ -n "$MIGRATE_XDG_BASE" ]; then
+		prefix_default="${MIGRATE_XDG_BASE%/}/.local"
+	fi
 	local prefix_choice
-	prefix_choice="$(_tui_readline "Tool install prefix [${DEFAULT_PATH}]: ")"
-	if [ -n "$prefix_choice" ]; then
+	prefix_choice="$(_tui_readline "Tool install prefix [${prefix_default}]: ")"
+	[ -z "$prefix_choice" ] && prefix_choice="$prefix_default"
+	if [ "$prefix_choice" != "$DEFAULT_PATH" ]; then
 		create_installation_path "$prefix_choice" || return 1
 		DEFAULT_PATH="${prefix_choice%/}"
 	fi
@@ -1548,28 +1560,28 @@ cmd_setup() {
 			# Checklist of optional components.
 			local picked
 			picked="$(_tui_checklist "Components to install (Quick base is implied)" \
-				nvim   "Neovim binary"            ON  \
-				essential "apt essentials (cmake, ripgrep, …)" ON \
-				fd     "fd file finder"           ON  \
-				bat    "bat pretty cat"           ON  \
-				lazygit "lazygit TUI"             ON  \
-				yazi   "yazi (cargo build, slow)" OFF \
-				clang  "clang-tools (clangd, …)"  ON  \
-				lua_ls "lua-language-server"      ON  \
-				python "python3-venv + debugpy"   ON  \
-				bat_extras "bat-extras helpers"   OFF)"
+				bat        "bat pretty cat"                    ON  \
+				bat_extras "bat-extras helpers"                OFF \
+				clang      "clang-tools (clangd, …)"           ON  \
+				essential  "apt essentials (cmake, ripgrep, …)" ON  \
+				fd         "fd file finder"                    ON  \
+				lazygit    "lazygit TUI"                       ON  \
+				lua_ls     "lua-language-server"               ON  \
+				nvim       "Neovim binary"                     ON  \
+				python     "python3-venv + debugpy"            ON  \
+				yazi       "yazi (cargo build, slow)"          OFF)"
 			while IFS= read -r tag; do
 				case "$tag" in
-					nvim) install_nvim ;;
+					bat) install_bat ;;
+					bat_extras) install_bat_extra ;;
+					clang) install_clang_tools ;;
 					essential) install_essential ;;
 					fd) install_fd ;;
-					bat) install_bat ;;
 					lazygit) install_lazygit ;;
-					yazi) install_yazi ;;
-					clang) install_clang_tools ;;
 					lua_ls) install_lua_ls ;;
+					nvim) install_nvim ;;
 					python) install_python3_venv && install_debug_tools ;;
-					bat_extras) install_bat_extra ;;
+					yazi) install_yazi ;;
 				esac
 			done <<<"$picked"
 			cmd_migrate || return 1
@@ -1581,17 +1593,17 @@ cmd_setup() {
 }
 
 install_all() {
-	install_nvim
-	install_essential
-	install_fd
 	install_bat
-	install_yazi
-	install_lazygit
 	install_bat_extra
 	install_clang_tools
-	install_lua_ls
-	install_python3_venv
 	install_debug_tools
+	install_essential
+	install_fd
+	install_lazygit
+	install_lua_ls
+	install_nvim
+	install_python3_venv
+	install_yazi
 }
 
 # Resolve the path of the nvim/ directory that ships this script. We are
@@ -1707,36 +1719,42 @@ cmd_migrate() {
 		xdg_config="${MIGRATE_CONFIG_TARGET%/}"
 	fi
 
-	mkdir -p "$xdg_config" "$xdg_data" "$xdg_state" "$xdg_cache" || {
+	mkdir -p "$xdg_config" "$xdg_data" "$xdg_state" "$xdg_cache" "${xdg_state%/}/nvim" || {
 		echo -e "${RED}[migrate] Failed to create XDG dirs${RESET}"
 		return 1
 	}
 
+	local nvim_log_file="${xdg_state%/}/nvim/nvim.log"
+
 	# 2) Persist XDG vars to shell rc only when the user explicitly opted in
 	# via --xdg-base. We don't want to mutate a user's environment silently.
+	# NVIM_LOG_FILE rides the same opt-in: it pins nvim's log under
+	# $XDG_STATE_HOME/nvim/ so the log lives where the rest of the layout does.
 	if [ -n "$MIGRATE_XDG_BASE" ]; then
 		write_env_to_rc XDG_CONFIG_HOME "$xdg_config"
 		write_env_to_rc XDG_DATA_HOME "$xdg_data"
 		write_env_to_rc XDG_STATE_HOME "$xdg_state"
 		write_env_to_rc XDG_CACHE_HOME "$xdg_cache"
+		write_env_to_rc NVIM_LOG_FILE "$nvim_log_file"
 		# Also export NOW so any commands later in this run see the new values.
 		export XDG_CONFIG_HOME="$xdg_config"
 		export XDG_DATA_HOME="$xdg_data"
 		export XDG_STATE_HOME="$xdg_state"
 		export XDG_CACHE_HOME="$xdg_cache"
+		export NVIM_LOG_FILE="$nvim_log_file"
 	fi
 
 	# 3) Optionally install dependencies first (so a brand-new machine is
 	# usable in one shot).
 	if [ "$MIGRATE_WITH_DEPS" = "1" ]; then
 		echo -e "${MAGENTA}[migrate]: Installing dependencies (--with-deps)${RESET}"
-		install_nvim
+		install_bat
+		install_clang_tools
 		install_essential
 		install_fd
-		install_bat
 		install_lazygit
-		install_clang_tools
 		install_lua_ls
+		install_nvim
 		install_python3_venv
 		# yazi / bat-extras / debug-tools are heavy; opt-in only.
 	fi
@@ -1755,6 +1773,7 @@ cmd_migrate() {
 	echo "  XDG_DATA_HOME:    ${xdg_data}"
 	echo "  XDG_STATE_HOME:   ${xdg_state}"
 	echo "  XDG_CACHE_HOME:   ${xdg_cache}"
+	echo "  NVIM_LOG_FILE:    ${nvim_log_file}"
 	echo "  PATH addition:    ${DEFAULT_PATH}/bin"
 	echo
 	echo -e "${YELLOW}Open a new shell (or 'source ~/.bashrc') and run 'nvim' to finish plugin sync.${RESET}"
