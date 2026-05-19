@@ -20,17 +20,17 @@ ASSUME_YES=0
 # Remembered answer to "use sudo?" prompt: unset | yes | no
 SUDO_CHOICE=""
 
-# Default versions (as of 2025-06-13)
-DEFAULT_NVIM_VERSION="0.11.2"
-DEFAULT_LAZYGIT_VERSION="0.52.0"
-DEFAULT_YAZI_VERSION="25.5.31"
+# Default versions (as of 2026-05-19)
 DEFAULT_BAT_EXTRAS_VERSION="2024.08.24"
-DEFAULT_CLANG_TOOLS_VERSION="17.0.6"
-DEFAULT_LUA_LS_VERSION="3.14.0"
-DEFAULT_NODE_LTS_VERSION="22.16.0"
-DEFAULT_TREE_SITTER_VERSION="0.25.6"
-DEFAULT_FD_VERSION="10.2.0"
-DEFAULT_BAT_VERSION="0.25.0"
+DEFAULT_BAT_VERSION="0.26.1"
+DEFAULT_CLANG_TOOLS_VERSION="22.1.5"
+DEFAULT_FD_VERSION="10.4.2"
+DEFAULT_LAZYGIT_VERSION="0.61.1"
+DEFAULT_LUA_LS_VERSION="3.18.2"
+DEFAULT_NODE_LTS_VERSION="24.15.0"
+DEFAULT_NVIM_VERSION="0.12.2"
+DEFAULT_TREE_SITTER_VERSION="0.26.8"
+DEFAULT_YAZI_VERSION="26.5.6"
 
 # migrate: where to copy the nvim config to, and (optionally) where to
 # anchor XDG_* dirs. Both are filled from CLI flags by process_arguments().
@@ -43,20 +43,26 @@ SYNC_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/nvim-installer"
 SYNC_CACHE_FILE="${SYNC_CACHE_DIR}/versions.env"
 SYNC_DRY_RUN=0
 
+# Per-run install outcomes. Each entry: "<friendly-name>|<status>" where
+# status is one of: ok | failed | skipped. Reset per install batch via
+# install_summary_reset; appended to by track_install; printed by
+# install_summary_print.
+INSTALL_RESULTS=()
+
 # Each entry: "<var_name>|<fetcher spec>|<x86_url_template>|<arm_url_template>"
 # Fetcher spec: "gh:owner/repo"  OR  "node-lts" (special-cased).
 # URL templates use %V for version (no leading 'v').
 SYNC_PACKAGES=(
-	"DEFAULT_NVIM_VERSION|gh:neovim/neovim|https://github.com/neovim/neovim/releases/download/v%V/nvim-linux-x86_64.tar.gz|https://github.com/neovim/neovim/releases/download/v%V/nvim-linux-arm64.tar.gz"
-	"DEFAULT_LAZYGIT_VERSION|gh:jesseduffield/lazygit|https://github.com/jesseduffield/lazygit/releases/download/v%V/lazygit_%V_Linux_x86_64.tar.gz|https://github.com/jesseduffield/lazygit/releases/download/v%V/lazygit_%V_Linux_arm64.tar.gz"
-	"DEFAULT_YAZI_VERSION|gh:sxyazi/yazi|https://github.com/sxyazi/yazi/releases/tag/v%V|https://github.com/sxyazi/yazi/releases/tag/v%V"
 	"DEFAULT_BAT_EXTRAS_VERSION|gh:eth-p/bat-extras|https://github.com/eth-p/bat-extras/archive/refs/tags/v%V.tar.gz|https://github.com/eth-p/bat-extras/archive/refs/tags/v%V.tar.gz"
-	"DEFAULT_CLANG_TOOLS_VERSION|gh:llvm/llvm-project|https://github.com/llvm/llvm-project/releases/download/llvmorg-%V/clang+llvm-%V-x86_64-linux-gnu-ubuntu-22.04.tar.xz|https://github.com/llvm/llvm-project/releases/download/llvmorg-%V/clang+llvm-%V-aarch64-linux-gnu.tar.xz"
+	"DEFAULT_BAT_VERSION|gh:sharkdp/bat|https://github.com/sharkdp/bat/releases/download/v%V/bat-v%V-x86_64-unknown-linux-musl.tar.gz|https://github.com/sharkdp/bat/releases/download/v%V/bat-v%V-aarch64-unknown-linux-musl.tar.gz"
+	"DEFAULT_CLANG_TOOLS_VERSION|gh:llvm/llvm-project|https://github.com/llvm/llvm-project/releases/download/llvmorg-%V/LLVM-%V-Linux-X64.tar.xz|https://github.com/llvm/llvm-project/releases/download/llvmorg-%V/LLVM-%V-Linux-ARM64.tar.xz"
+	"DEFAULT_FD_VERSION|gh:sharkdp/fd|https://github.com/sharkdp/fd/releases/download/v%V/fd-v%V-x86_64-unknown-linux-musl.tar.gz|https://github.com/sharkdp/fd/releases/download/v%V/fd-v%V-aarch64-unknown-linux-musl.tar.gz"
+	"DEFAULT_LAZYGIT_VERSION|gh:jesseduffield/lazygit|https://github.com/jesseduffield/lazygit/releases/download/v%V/lazygit_%V_Linux_x86_64.tar.gz|https://github.com/jesseduffield/lazygit/releases/download/v%V/lazygit_%V_Linux_arm64.tar.gz"
 	"DEFAULT_LUA_LS_VERSION|gh:LuaLS/lua-language-server|https://github.com/LuaLS/lua-language-server/releases/download/%V/lua-language-server-%V-linux-x64.tar.gz|https://github.com/LuaLS/lua-language-server/releases/download/%V/lua-language-server-%V-linux-arm64.tar.gz"
 	"DEFAULT_NODE_LTS_VERSION|node-lts|https://nodejs.org/dist/v%V/node-v%V-linux-x64.tar.xz|https://nodejs.org/dist/v%V/node-v%V-linux-arm64.tar.xz"
+	"DEFAULT_NVIM_VERSION|gh:neovim/neovim|https://github.com/neovim/neovim/releases/download/v%V/nvim-linux-x86_64.tar.gz|https://github.com/neovim/neovim/releases/download/v%V/nvim-linux-arm64.tar.gz"
 	"DEFAULT_TREE_SITTER_VERSION|gh:tree-sitter/tree-sitter|https://github.com/tree-sitter/tree-sitter/releases/download/v%V/tree-sitter-linux-x64.gz|https://github.com/tree-sitter/tree-sitter/releases/download/v%V/tree-sitter-linux-arm64.gz"
-	"DEFAULT_FD_VERSION|gh:sharkdp/fd|https://github.com/sharkdp/fd/releases/download/v%V/fd-v%V-x86_64-unknown-linux-musl.tar.gz|https://github.com/sharkdp/fd/releases/download/v%V/fd-v%V-aarch64-unknown-linux-musl.tar.gz"
-	"DEFAULT_BAT_VERSION|gh:sharkdp/bat|https://github.com/sharkdp/bat/releases/download/v%V/bat-v%V-x86_64-unknown-linux-musl.tar.gz|https://github.com/sharkdp/bat/releases/download/v%V/bat-v%V-aarch64-unknown-linux-musl.tar.gz"
+	"DEFAULT_YAZI_VERSION|gh:sxyazi/yazi|https://github.com/sxyazi/yazi/releases/tag/v%V|https://github.com/sxyazi/yazi/releases/tag/v%V"
 )
 
 show_help() {
@@ -79,8 +85,8 @@ show_help() {
 	echo "    --xdg-base=DIR        - (migrate only) Anchor XDG_CONFIG_HOME / DATA / STATE / CACHE"
 	echo "                            under DIR (e.g. \$WORKSPACE) and persist them in your shell rc."
 	echo "                            Useful when \$HOME has a quota."
-	echo "    --with-deps           - (migrate only) Also run install_nvim + essentials + fd/bat/lazygit/"
-	echo "                            clang-tools/lua_ls/python3-venv before deploying the config"
+	echo "    --with-deps           - (migrate only) Also run install_nvim + essentials + bat/clang-tools/"
+	echo "                            clipboard-provider/fd/lazygit/lua_ls/python3-venv before deploying the config"
 	echo -e "    -y                    - Automatically answer 'yes' to sudo prompts\n"
 	echo -e "\nEnvironment:"
 	echo "    GITHUB_TOKEN / GH_TOKEN - Optional. When set, GitHub API calls are authenticated"
@@ -107,14 +113,15 @@ show_components() {
 	echo -e "    1) bat"
 	echo -e "    2) bat-extras"
 	echo -e "    3) clang-tools"
-	echo -e "    4) debug-tools"
-	echo -e "    5) fd"
-	echo -e "    6) lazygit"
-	echo -e "    7) lua_ls"
-	echo -e "    8) neovim"
-	echo -e "    9) nvim-config"
-	echo -e "   10) python3-venv"
-	echo -e "   11) yazi"
+	echo -e "    4) clipboard-provider"
+	echo -e "    5) debug-tools"
+	echo -e "    6) fd"
+	echo -e "    7) lazygit"
+	echo -e "    8) lua_ls"
+	echo -e "    9) neovim"
+	echo -e "   10) nvim-config"
+	echo -e "   11) python3-venv"
+	echo -e "   12) yazi"
 }
 
 # Ask the user whether to escalate via sudo for the described action.
@@ -299,45 +306,75 @@ version_compare() {
 	return 0
 }
 
-# Emit curl args for an authenticated GitHub API request when GITHUB_TOKEN or
-# GH_TOKEN is set. Unauthenticated requests share a 60/hour per-IP quota, which
-# is easy to exhaust on shared NAT'd networks; a token raises it to 5000/hour.
+# Emit curl args for an authenticated GitHub API request. Tries env vars
+# (GITHUB_TOKEN/GH_TOKEN) first, then borrows from `gh auth token` if the user
+# is logged in. Unauthenticated API requests share a 60/hour per-IP quota,
+# which is easy to exhaust on shared NAT'd networks; a token raises it to
+# 5000/hour.
 gh_auth_args() {
 	local token="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
+	if [ -z "$token" ] && command -v gh &>/dev/null; then
+		token=$(gh auth token 2>/dev/null || true)
+	fi
 	if [ -n "$token" ]; then
 		printf '%s\n' "-H" "Authorization: Bearer ${token}"
 	fi
 }
 
+# Resolve the latest release tag for a GitHub repo. Strategy:
+#   1. HEAD `github.com/<repo>/releases/latest`; the 302 Location header
+#      contains `/releases/tag/<tag>`. This path is NOT subject to the
+#      api.github.com 60/hour limit, so it works on shared NAT networks
+#      without a token.
+#   2. Fall back to `api.github.com/.../releases/latest` (authenticated when
+#      a token is available).
+# Both paths normalize tag prefixes ("v", "llvmorg-").
 get_latest_github_release() {
 	local repo=$1
 	local default_version=$2
-	local auth_args=()
-	mapfile -t auth_args < <(gh_auth_args)
-
-	local response http_code
-	response=$(curl -sSL -w $'\n%{http_code}' --max-time 15 \
-		"${auth_args[@]}" \
-		-H "Accept: application/vnd.github+json" \
-		"https://api.github.com/repos/$repo/releases/latest" 2>/dev/null)
-	http_code="${response##*$'\n'}"
-	response="${response%$'\n'*}"
 
 	local version=""
-	if [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
-		# Strip common tag prefixes: plain "v", LLVM's "llvmorg-".
-		version=$(printf '%s' "$response" \
-			| grep -Po '"tag_name": "\K[^"]*' \
-			| sed -e 's/^llvmorg-//' -e 's/^v//')
+
+	# --- Path 1: HTML redirect (no rate limit). ---
+	local location
+	location=$(curl -sI --max-time 15 "https://github.com/$repo/releases/latest" 2>/dev/null \
+		| awk 'tolower($1) == "location:" { print $2 }' \
+		| tr -d '\r\n' \
+		| tail -1)
+	if [ -n "$location" ]; then
+		# Tag is the last path segment of the redirect target.
+		local tag="${location##*/tag/}"
+		tag="${tag##*/}"
+		version=$(printf '%s' "$tag" | sed -e 's/^llvmorg-//' -e 's/^v//')
 	fi
 
+	# --- Path 2: authenticated API fallback. ---
 	if [ -z "$version" ]; then
-		if [ "$http_code" = "403" ] && [ ${#auth_args[@]} -eq 0 ]; then
-			echo -e "${YELLOW}[WARNING] GitHub API rate-limited for $repo (HTTP 403). Set GITHUB_TOKEN or GH_TOKEN to raise the quota. Using default version $default_version${RESET}" >&2
-		else
-			echo -e "${YELLOW}[WARNING] Failed to get latest release for $repo (HTTP ${http_code:-?}), using default version $default_version${RESET}" >&2
+		local auth_args=()
+		mapfile -t auth_args < <(gh_auth_args)
+
+		local response http_code
+		response=$(curl -sSL -w $'\n%{http_code}' --max-time 15 \
+			"${auth_args[@]}" \
+			-H "Accept: application/vnd.github+json" \
+			"https://api.github.com/repos/$repo/releases/latest" 2>/dev/null)
+		http_code="${response##*$'\n'}"
+		response="${response%$'\n'*}"
+
+		if [[ "$http_code" =~ ^2[0-9][0-9]$ ]]; then
+			version=$(printf '%s' "$response" \
+				| grep -Po '"tag_name": "\K[^"]*' \
+				| sed -e 's/^llvmorg-//' -e 's/^v//')
 		fi
-		version="$default_version"
+
+		if [ -z "$version" ]; then
+			if [ "$http_code" = "403" ] && [ ${#auth_args[@]} -eq 0 ]; then
+				echo -e "${YELLOW}[WARNING] GitHub API rate-limited for $repo (HTTP 403). Set GITHUB_TOKEN/GH_TOKEN or run \`gh auth login\` to raise the quota. Using default version $default_version${RESET}" >&2
+			else
+				echo -e "${YELLOW}[WARNING] Failed to get latest release for $repo (HTTP ${http_code:-?}), using default version $default_version${RESET}" >&2
+			fi
+			version="$default_version"
+		fi
 	fi
 
 	echo "$version"
@@ -593,9 +630,9 @@ install_nvim() {
 }
 
 # Append an "export PATH" line to the user's shell rc if not already present.
+# When the path is under $WORKSPACE, writes a portable $WORKSPACE reference.
 append_path_to_rc() {
 	local bin_dir="$1"
-	local line="export PATH=\"${bin_dir}:\$PATH\""
 	local rc=""
 	# Pick an rc file the user actually uses; fall back to .bashrc.
 	if [ -n "$BASH_VERSION" ] || [ -f "$HOME/.bashrc" ]; then
@@ -606,9 +643,16 @@ append_path_to_rc() {
 		rc="$HOME/.profile"
 	fi
 	[ -f "$rc" ] || touch "$rc"
-	if ! grep -Fq "$bin_dir" "$rc"; then
+
+	local rc_dir="$bin_dir"
+	if [ -n "${WORKSPACE:-}" ] && [[ "$bin_dir" == "$WORKSPACE"* ]]; then
+		rc_dir="\$WORKSPACE${bin_dir#"$WORKSPACE"}"
+	fi
+	local line="export PATH=\"${rc_dir}:\$PATH\""
+
+	if ! grep -Fq "$rc_dir" "$rc"; then
 		echo "$line" >>"$rc"
-		echo -e "${CYAN}[INFO] Added '${bin_dir}' to PATH via ${rc}${RESET}"
+		echo -e "${CYAN}[INFO] Added '${rc_dir}' to PATH via ${rc}${RESET}"
 	fi
 }
 
@@ -686,11 +730,18 @@ install_sharkdp_release() {
 	local LATEST_VERSION
 	LATEST_VERSION=$(get_latest_github_release "$repo" "$default_version")
 
-	if ! command -v "$binname" &>/dev/null; then
+	# Probe ONLY our own install location, not whatever is on PATH. Some
+	# distros ship unrelated tools under the same name — notably, the
+	# `chdir` Debian/Ubuntu package provides a Japanese file-management TUI
+	# called `fd` that ignores --version and drops the user into a curses
+	# screen. Calling `fd --version` on such a system would hang this script
+	# in an interactive prompt.
+	local installed_bin="${DEFAULT_PATH}/bin/${binname}"
+	if [ ! -x "$installed_bin" ]; then
 		echo -e "${MAGENTA}[${friendly}]: Installing '${binname}' to ${DEFAULT_PATH}/bin (ARCH=${ARCH})${RESET}"
 	else
 		local CURRENT_VERSION
-		CURRENT_VERSION=$(get_current_version "$binname" "--version")
+		CURRENT_VERSION=$("$installed_bin" --version 2>&1 | grep -Po '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
 		if [ -n "$CURRENT_VERSION" ]; then
 			version_compare "$CURRENT_VERSION" "$LATEST_VERSION"
 			local cmp_result=$?
@@ -863,32 +914,80 @@ install_bat_extra() {
 	verify_installation "bat-extras" "batgrep"
 }
 
+# Install the in-repo `clipboard-provider` shim into $DEFAULT_PATH/bin.
+# It bridges nvim's clipboard provider to tmux/desktop tools — see
+# nvim/lua/core/options.lua for the wiring. Idempotent: re-installing
+# overwrites any older copy.
+install_clipboard_provider() {
+	if ! create_installation_path "${DEFAULT_PATH}"; then
+		return 1
+	fi
+
+	local src
+	if ! src="$(repo_nvim_dir)"; then
+		echo -e "${RED}[clipboard-provider] No nvim/ tree found next to this script${RESET}"
+		return 1
+	fi
+	local script_path="${src}/script/clipboard-provider"
+	if [ ! -f "$script_path" ]; then
+		echo -e "${RED}[clipboard-provider] Missing source: ${script_path}${RESET}"
+		return 1
+	fi
+
+	echo -e "${MAGENTA}[clipboard-provider]: Installing to ${DEFAULT_PATH}/bin${RESET}"
+	mkdir -p "${DEFAULT_PATH}/bin" || return 1
+	if ! install_to_prefix "${DEFAULT_PATH}/bin" "cp-r" "$script_path"; then
+		return 1
+	fi
+	chmod +x "${DEFAULT_PATH}/bin/clipboard-provider" 2>/dev/null || true
+
+	verify_installation "clipboard-provider" "clipboard-provider"
+}
+
 install_clang_tools() {
 	if ! create_installation_path "${DEFAULT_PATH}"; then
 		return 1
 	fi
 
-	# LLVM release file names are asymmetric:
-	#   aarch64-linux-gnu.tar.xz
-	#   x86_64-linux-gnu-ubuntu-22.04.tar.xz  (suffix differs per LLVM release)
-	local pkg_triple=""
+	# LLVM release asset naming changed at v22:
+	#   <=21: clang+llvm-<v>-x86_64-linux-gnu-ubuntu-22.04.tar.xz / -aarch64-linux-gnu.tar.xz
+	#    >=22: LLVM-<v>-Linux-X64.tar.xz / -Linux-ARM64.tar.xz
+	# Resolve the right pair for whatever version we end up using.
+	local LATEST_VERSION
+	LATEST_VERSION=$(get_latest_github_release "llvm/llvm-project" "$DEFAULT_CLANG_TOOLS_VERSION")
+
+	local pkg_dir="" package_url=""
+	_clang_pick_asset() {
+		local v="$1"
+		local major="${v%%.*}"
+		local x86_dir x86_url arm_dir arm_url
+		if [ "$major" -ge 22 ] 2>/dev/null; then
+			x86_dir="LLVM-${v}-Linux-X64"
+			arm_dir="LLVM-${v}-Linux-ARM64"
+		else
+			x86_dir="clang+llvm-${v}-x86_64-linux-gnu-ubuntu-22.04"
+			arm_dir="clang+llvm-${v}-aarch64-linux-gnu"
+		fi
+		x86_url="https://github.com/llvm/llvm-project/releases/download/llvmorg-${v}/${x86_dir}.tar.xz"
+		arm_url="https://github.com/llvm/llvm-project/releases/download/llvmorg-${v}/${arm_dir}.tar.xz"
+		case "$ARCH" in
+		x86 | x86_64)        pkg_dir="$x86_dir"; package_url="$x86_url" ;;
+		ARM64 | aarch64 | arm64) pkg_dir="$arm_dir"; package_url="$arm_url" ;;
+		esac
+	}
+
 	case "$ARCH" in
-	x86 | x86_64) pkg_triple="x86_64-linux-gnu-ubuntu-22.04" ;;
-	ARM64 | aarch64 | arm64) pkg_triple="aarch64-linux-gnu" ;;
-	*)
-		echo "Unsupported architecture: $ARCH"
-		return 1
-		;;
+	x86 | x86_64 | ARM64 | aarch64 | arm64) ;;
+	*) echo "Unsupported architecture: $ARCH"; return 1 ;;
 	esac
 
-	# LLVM doesn't ship prebuilt tarballs for every release — only select
-	# minor versions have x86_64-linux-gnu-ubuntu-*.tar.xz. Fall back to the
-	# pinned default when the latest upstream version has no matching asset.
-	local LATEST_VERSION=$(get_latest_github_release "llvm/llvm-project" "$DEFAULT_CLANG_TOOLS_VERSION")
-	local candidate_url="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LATEST_VERSION}/clang+llvm-${LATEST_VERSION}-${pkg_triple}.tar.xz"
-	if ! url_exists "$candidate_url"; then
-		echo -e "${YELLOW}[clang-tools]: No prebuilt ${pkg_triple} asset for v${LATEST_VERSION}; falling back to pinned v${DEFAULT_CLANG_TOOLS_VERSION}${RESET}" >&2
+	# LLVM doesn't ship prebuilt tarballs for every release. If the resolved
+	# latest has no matching asset, fall back to the pinned default.
+	_clang_pick_asset "$LATEST_VERSION"
+	if ! url_exists "$package_url"; then
+		echo -e "${YELLOW}[clang-tools]: No prebuilt asset for v${LATEST_VERSION} (${package_url##*/}); falling back to pinned v${DEFAULT_CLANG_TOOLS_VERSION}${RESET}" >&2
 		LATEST_VERSION="$DEFAULT_CLANG_TOOLS_VERSION"
+		_clang_pick_asset "$LATEST_VERSION"
 	fi
 	local version="${LATEST_VERSION%%.*}"
 
@@ -917,9 +1016,6 @@ install_clang_tools() {
 	local temp_dir=$(mktemp -d)
 	local start_dir="$PWD"
 	cd "$temp_dir" || return 1
-
-	local pkg_dir="clang+llvm-${LATEST_VERSION}-${pkg_triple}"
-	local package_url="https://github.com/llvm/llvm-project/releases/download/llvmorg-${LATEST_VERSION}/${pkg_dir}.tar.xz"
 
 	if ! fetch_cached "$package_url" "${pkg_dir}.tar.xz"; then
 		cd "$start_dir"
@@ -1175,16 +1271,17 @@ select_component() {
 	1) install_bat ;;
 	2) install_bat_extra ;;
 	3) install_clang_tools ;;
-	4) install_debug_tools ;;
-	5) install_fd ;;
-	6) install_lazygit ;;
-	7) install_lua_ls ;;
-	8) install_nvim ;;
-	9) install_nvim_config ;;
-	10) install_python3_venv ;;
-	11) install_yazi ;;
+	4) install_clipboard_provider ;;
+	5) install_debug_tools ;;
+	6) install_fd ;;
+	7) install_lazygit ;;
+	8) install_lua_ls ;;
+	9) install_nvim ;;
+	10) install_nvim_config ;;
+	11) install_python3_venv ;;
+	12) install_yazi ;;
 	*)
-		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 11.${RESET}"
+		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 12.${RESET}"
 		exit 1
 		;;
 	esac
@@ -1209,11 +1306,26 @@ install_essential() {
 	fi
 
 	# Install/update NVM and Node.js
+	local nvm_dir="${NVM_DIR:-$HOME/.nvm}"
 	if ! command -v nvm &>/dev/null; then
 		echo -e "${YELLOW}[INFO] Installing nvm...${RESET}"
-		NVM_VERSION=$(curl -s https://api.github.com/repos/nvm-sh/nvm/releases/latest | grep 'tag_name' | cut -d'"' -f4)
+		local auth_args=()
+		mapfile -t auth_args < <(gh_auth_args)
+		NVM_VERSION=$(curl -sSL --max-time 15 "${auth_args[@]}" \
+			-H "Accept: application/vnd.github+json" \
+			"https://api.github.com/repos/nvm-sh/nvm/releases/latest" 2>/dev/null \
+			| grep -Po '"tag_name": "\K[^"]*')
+		if [ -z "$NVM_VERSION" ]; then
+			NVM_VERSION="v0.40.3"
+			echo -e "${YELLOW}[WARNING] Failed to resolve nvm latest version, using default ${NVM_VERSION}${RESET}"
+		fi
+		export NVM_DIR="$nvm_dir"
 		curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/${NVM_VERSION}/install.sh" | bash
-		source "$HOME/.nvm/nvm.sh"
+		if [ ! -f "$nvm_dir/nvm.sh" ]; then
+			echo -e "${RED}[ERROR] nvm installation failed (${nvm_dir}/nvm.sh not found)${RESET}"
+			return 1
+		fi
+		source "$nvm_dir/nvm.sh"
 	else
 		echo -e "${BLUE}[INFO] nvm is already installed${RESET}"
 	fi
@@ -1239,14 +1351,29 @@ install_essential() {
 	fi
 
 	# Install/update tree-sitter
-	TS_LATEST_VERSION="$DEFAULT_TREE_SITTER_VERSION"
-	TS_CURRENT_VERSION=$(command -v tree-sitter >/dev/null && tree-sitter --version | grep -o '[0-9.]*' || echo "0")
+	# tree-sitter >=0.26 requires GLIBC 2.39; detect and fall back to 0.25.x.
+	local glibc_ver ts_target_version
+	glibc_ver=$(ldd --version 2>&1 | grep -Po 'GLIBC \K[0-9.]+|ldd .* \K[0-9.]+' | head -1)
+	glibc_ver="${glibc_ver:-0}"
+	ts_target_version="$DEFAULT_TREE_SITTER_VERSION"
+	version_compare "${glibc_ver}" "2.39"
+	if [ $? -eq 2 ]; then
+		# GLIBC < 2.39 — 0.26.x binaries won't run
+		local ts_compat="0.25.10"
+		version_compare "$ts_target_version" "0.26.0"
+		if [ $? -ne 2 ]; then
+			echo -e "${YELLOW}[INFO] GLIBC ${glibc_ver} < 2.39; capping tree-sitter at v${ts_compat}${RESET}"
+			ts_target_version="$ts_compat"
+		fi
+	fi
 
-	version_compare "$TS_CURRENT_VERSION" "$TS_LATEST_VERSION"
+	TS_CURRENT_VERSION=$(command -v tree-sitter >/dev/null && tree-sitter --version 2>/dev/null | grep -Po '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0")
+
+	version_compare "$TS_CURRENT_VERSION" "$ts_target_version"
 	TS_NEED_UPDATE=$?
 
 	if [[ $TS_NEED_UPDATE -eq 2 ]] || ! command -v tree-sitter &>/dev/null; then
-		echo -e "${YELLOW}[INFO] Installing/updating tree-sitter...${RESET}"
+		echo -e "${YELLOW}[INFO] Installing/updating tree-sitter v${ts_target_version}...${RESET}"
 
 		# Determine architecture
 		local ts_package=""
@@ -1261,7 +1388,7 @@ install_essential() {
 		esac
 
 		# Download and install tree-sitter
-		TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/v${TS_LATEST_VERSION}/${ts_package}.gz"
+		TS_URL="https://github.com/tree-sitter/tree-sitter/releases/download/v${ts_target_version}/${ts_package}.gz"
 		if fetch_cached "$TS_URL" "${ts_package}.gz"; then
 			gunzip -f "${ts_package}.gz"
 			chmod +x "$ts_package"
@@ -1272,7 +1399,7 @@ install_essential() {
 					maybe_sudo "Install 'tree-sitter' into ${DEFAULT_PATH}/bin" mv "$ts_package" "${DEFAULT_PATH}/bin/tree-sitter" || rm -f "$ts_package"
 				fi
 			fi
-			echo -e "${GREEN}[SUCCESS] tree-sitter updated to v${TS_LATEST_VERSION}${RESET}"
+			echo -e "${GREEN}[SUCCESS] tree-sitter updated to v${ts_target_version}${RESET}"
 		else
 			echo -e "${YELLOW}[WARNING] Failed to download tree-sitter, falling back to package manager${RESET}"
 			maybe_sudo "Install 'tree-sitter' via apt" apt-get install -y tree-sitter || true
@@ -1415,18 +1542,31 @@ _tui_menu() {
 		return $?
 	fi
 	# Plain fallback: pairs of tag/desc on stdin.
+	local cols
+	cols=$(tput cols 2>/dev/null || echo 80)
+	local content_width=50
+	local pad=$(( (cols - content_width) / 2 ))
+	[ "$pad" -lt 0 ] && pad=0
+	local margin=""
+	[ "$pad" -gt 0 ] && margin=$(printf '%*s' "$pad" '')
+	local title_str="==== $title ===="
+	local title_pad=$(( (cols - ${#title_str}) / 2 ))
+	[ "$title_pad" -lt 0 ] && title_pad=0
+	local title_margin=""
+	[ "$title_pad" -gt 0 ] && title_margin=$(printf '%*s' "$title_pad" '')
+
 	echo "" >&2
-	echo "==== $title ====" >&2
+	echo "${title_margin}${title_str}" >&2
 	local i=1 tag desc
 	local -a tags=()
 	while [ $# -gt 0 ]; do
 		tag="$1"; desc="$2"; shift 2
 		tags+=("$tag")
-		printf "  %2d) %-12s  %s\n" "$i" "$tag" "$desc" >&2
+		printf "%s%2d) %-12s  %s\n" "$margin" "$i" "$tag" "$desc" >&2
 		i=$((i+1))
 	done
 	local pick
-	pick="$(_tui_readline "Pick number: ")"
+	pick="$(_tui_readline "${margin}Pick number: ")"
 	[[ "$pick" =~ ^[0-9]+$ ]] || return 1
 	[ "$pick" -ge 1 ] && [ "$pick" -le "${#tags[@]}" ] || return 1
 	printf '%s' "${tags[$((pick-1))]}"
@@ -1452,14 +1592,29 @@ _tui_checklist() {
 		return $?
 	fi
 	# Plain fallback: print options with default state, ask comma-separated.
+	local cols
+	cols=$(tput cols 2>/dev/null || echo 80)
+	local content_width=55
+	local pad=$(( (cols - content_width) / 2 ))
+	[ "$pad" -lt 0 ] && pad=0
+	local margin=""
+	[ "$pad" -gt 0 ] && margin=$(printf '%*s' "$pad" '')
+	local title_str="==== $title ===="
+	local title_pad=$(( (cols - ${#title_str}) / 2 ))
+	[ "$title_pad" -lt 0 ] && title_pad=0
+	local title_margin=""
+	[ "$title_pad" -gt 0 ] && title_margin=$(printf '%*s' "$title_pad" '')
+
 	echo "" >&2
-	echo "==== $title ====" >&2
+	echo "${title_margin}${title_str}" >&2
 	local i=1 tag desc state
 	local -a tags=() defaults=()
 	while [ $# -gt 0 ]; do
 		tag="$1"; desc="$2"; state="$3"; shift 3
 		tags+=("$tag")
-		printf "  %2d) [%s] %-18s %s\n" "$i" "$state" "$tag" "$desc" >&2
+		local display_state="$state"
+		[ "$state" = "ON" ] && display_state=" ON"
+		printf "%s%2d) [%s] %-18s %s\n" "$margin" "$i" "$display_state" "$tag" "$desc" >&2
 		[ "$state" = "ON" ] && defaults+=("$i")
 		i=$((i+1))
 	done
@@ -1468,7 +1623,7 @@ _tui_checklist() {
 		def_csv=$(IFS=,; echo "${defaults[*]}")
 	fi
 	local pick
-	pick="$(_tui_readline "Numbers (comma-separated; blank = defaults: ${def_csv}): ")"
+	pick="$(_tui_readline "${margin}Select (comma-sep; blank=defaults ${def_csv}): ")"
 	[ -z "$pick" ] && pick="$def_csv"
 	local chosen=()
 	IFS=',' read -ra raw <<<"$pick"
@@ -1490,7 +1645,7 @@ cmd_setup() {
 	local profile
 	profile="$(_tui_menu "Install profile" \
 		quick "Neovim + apt essentials + deploy config (recommended)" \
-		full  "Quick + fd + bat + lazygit + clang-tools + lua_ls + python3-venv" \
+		full  "Quick + fd/bat/lazygit/clang-tools/lua_ls/python-venv" \
 		custom "Pick components manually" \
 		config-only "Just deploy config; skip all installs")" || {
 			echo "[abort]"; return 1
@@ -1500,7 +1655,7 @@ cmd_setup() {
 	# XDG layout ---------------------------------------------------------
 	local xdg_choice
 	xdg_choice="$(_tui_menu "XDG layout" \
-		default     "Use default \$HOME-based dirs (FHS)" \
+		default     "Use default \$HOME-based dirs (FHS standard)" \
 		workspace   "Anchor under \$WORKSPACE (avoids \$HOME quotas)" \
 		custom      "Type a custom anchor path")" || {
 			echo "[abort]"; return 1
@@ -1541,11 +1696,12 @@ cmd_setup() {
 	echo -e "${CYAN}[setup] prefix = ${DEFAULT_PATH}${RESET}"
 
 	# Run ----------------------------------------------------------------
+	install_summary_reset
 	case "$profile" in
 		quick)
 			MIGRATE_WITH_DEPS=0
-			install_nvim || return 1
-			install_essential || true
+			track_install "nvim"      install_nvim || return 1
+			track_install "essential" install_essential
 			cmd_migrate || return 1
 			;;
 		full)
@@ -1559,51 +1715,108 @@ cmd_setup() {
 		custom)
 			# Checklist of optional components.
 			local picked
-			picked="$(_tui_checklist "Components to install (Quick base is implied)" \
-				bat        "bat pretty cat"                    ON  \
-				bat_extras "bat-extras helpers"                OFF \
-				clang      "clang-tools (clangd, …)"           ON  \
-				essential  "apt essentials (cmake, ripgrep, …)" ON  \
-				fd         "fd file finder"                    ON  \
-				lazygit    "lazygit TUI"                       ON  \
-				lua_ls     "lua-language-server"               ON  \
-				nvim       "Neovim binary"                     ON  \
-				python     "python3-venv + debugpy"            ON  \
-				yazi       "yazi (cargo build, slow)"          OFF)"
+			picked="$(_tui_checklist "Components to install" \
+				bat         "bat: syntax-highlighted cat replacement"   ON  \
+				bat_extras  "bat-extras: batgrep, batdiff, etc"         OFF \
+				clang       "clang-tools: clangd + clang-format"       ON  \
+				clipboard   "clipboard-provider for tmux/desktop"      ON  \
+				essential   "apt essentials: cmake, ripgrep, ninja..."  ON  \
+				fd          "fd: fast find alternative"                 ON  \
+				lazygit     "lazygit: terminal git UI"                  ON  \
+				lua_ls      "lua-language-server for Neovim config"    ON  \
+				nvim        "Neovim binary (latest release)"           ON  \
+				python      "python3-venv + debugpy for DAP"           ON  \
+				yazi        "yazi file manager (cargo build, slow)"    OFF)"
 			while IFS= read -r tag; do
 				case "$tag" in
-					bat) install_bat ;;
-					bat_extras) install_bat_extra ;;
-					clang) install_clang_tools ;;
-					essential) install_essential ;;
-					fd) install_fd ;;
-					lazygit) install_lazygit ;;
-					lua_ls) install_lua_ls ;;
-					nvim) install_nvim ;;
-					python) install_python3_venv && install_debug_tools ;;
-					yazi) install_yazi ;;
+					bat)        track_install "bat"                install_bat ;;
+					bat_extras) track_install "bat-extras"         install_bat_extra ;;
+					clang)      track_install "clang-tools"        install_clang_tools ;;
+					clipboard)  track_install "clipboard-provider" install_clipboard_provider ;;
+					essential)  track_install "essential"          install_essential ;;
+					fd)         track_install "fd"                 install_fd ;;
+					lazygit)    track_install "lazygit"            install_lazygit ;;
+					lua_ls)     track_install "lua_ls"             install_lua_ls ;;
+					nvim)       track_install "nvim"               install_nvim ;;
+					python)     track_install "python3-venv"       install_python3_venv \
+					            && track_install "debug-tools"     install_debug_tools ;;
+					yazi)       track_install "yazi"               install_yazi ;;
 				esac
 			done <<<"$picked"
 			cmd_migrate || return 1
 			;;
 	esac
 
+	install_summary_print
 	echo
 	echo -e "${GREEN}===== setup complete =====${RESET}"
 }
 
+# Install-summary tracking. Reset at the start of a batch, then drive every
+# install_* call through track_install so we can print a per-package outcome
+# table at the end.
+install_summary_reset() {
+	INSTALL_RESULTS=()
+}
+
+# Run an install_* function and record its outcome.
+# Args: <friendly-name> <install_fn> [args...]
+# Status: ok if exit=0, failed otherwise. (Individual install_* functions
+# already short-circuit "already up-to-date" with exit=0; we count those as
+# ok — the user got a working tool either way.)
+track_install() {
+	local label="$1"; shift
+	local fn="$1"; shift
+	if "$fn" "$@"; then
+		INSTALL_RESULTS+=("${label}|ok")
+	else
+		INSTALL_RESULTS+=("${label}|failed")
+	fi
+}
+
+# Mark a package as deliberately not attempted (e.g. user de-selected it).
+install_summary_skip() {
+	INSTALL_RESULTS+=("$1|skipped")
+}
+
+# Pretty-print a summary of the current batch. Safe to call with zero entries.
+install_summary_print() {
+	if [ ${#INSTALL_RESULTS[@]} -eq 0 ]; then
+		return 0
+	fi
+	local ok=0 failed=0 skipped=0
+	local entry label status
+	echo
+	echo -e "${MAGENTA}===== install summary =====${RESET}"
+	for entry in "${INSTALL_RESULTS[@]}"; do
+		label="${entry%%|*}"
+		status="${entry##*|}"
+		case "$status" in
+			ok)      printf "  ${GREEN}%-8s${RESET} %s\n" "OK"      "$label"; ((ok++)) ;;
+			failed)  printf "  ${RED}%-8s${RESET} %s\n"   "FAILED"  "$label"; ((failed++)) ;;
+			skipped) printf "  ${YELLOW}%-8s${RESET} %s\n" "SKIPPED" "$label"; ((skipped++)) ;;
+		esac
+	done
+	echo -e "  ${CYAN}---${RESET}"
+	printf "  total: %d  ${GREEN}ok: %d${RESET}  ${RED}failed: %d${RESET}  ${YELLOW}skipped: %d${RESET}\n" \
+		"${#INSTALL_RESULTS[@]}" "$ok" "$failed" "$skipped"
+}
+
 install_all() {
-	install_bat
-	install_bat_extra
-	install_clang_tools
-	install_debug_tools
-	install_essential
-	install_fd
-	install_lazygit
-	install_lua_ls
-	install_nvim
-	install_python3_venv
-	install_yazi
+	install_summary_reset
+	track_install "bat"                install_bat
+	track_install "bat-extras"         install_bat_extra
+	track_install "clang-tools"        install_clang_tools
+	track_install "clipboard-provider" install_clipboard_provider
+	track_install "debug-tools"        install_debug_tools
+	track_install "essential"          install_essential
+	track_install "fd"                 install_fd
+	track_install "lazygit"            install_lazygit
+	track_install "lua_ls"             install_lua_ls
+	track_install "nvim"               install_nvim
+	track_install "python3-venv"       install_python3_venv
+	track_install "yazi"               install_yazi
+	install_summary_print
 }
 
 # Resolve the path of the nvim/ directory that ships this script. We are
@@ -1730,12 +1943,21 @@ cmd_migrate() {
 	# via --xdg-base. We don't want to mutate a user's environment silently.
 	# NVIM_LOG_FILE rides the same opt-in: it pins nvim's log under
 	# $XDG_STATE_HOME/nvim/ so the log lives where the rest of the layout does.
+	#
+	# When the anchor matches $WORKSPACE, write portable "$WORKSPACE/..."
+	# references so the rc survives workspace path changes.
 	if [ -n "$MIGRATE_XDG_BASE" ]; then
-		write_env_to_rc XDG_CONFIG_HOME "$xdg_config"
-		write_env_to_rc XDG_DATA_HOME "$xdg_data"
-		write_env_to_rc XDG_STATE_HOME "$xdg_state"
-		write_env_to_rc XDG_CACHE_HOME "$xdg_cache"
-		write_env_to_rc NVIM_LOG_FILE "$nvim_log_file"
+		local rc_base
+		if [ -n "${WORKSPACE:-}" ] && [ "$MIGRATE_XDG_BASE" = "$WORKSPACE" ]; then
+			rc_base='$WORKSPACE'
+		else
+			rc_base="$MIGRATE_XDG_BASE"
+		fi
+		write_env_to_rc XDG_CONFIG_HOME "${rc_base}/.config"
+		write_env_to_rc XDG_DATA_HOME "${rc_base}/.local/share"
+		write_env_to_rc XDG_STATE_HOME "${rc_base}/.local/state"
+		write_env_to_rc XDG_CACHE_HOME "${rc_base}/.cache"
+		write_env_to_rc NVIM_LOG_FILE "${rc_base}/.local/state/nvim/nvim.log"
 		# Also export NOW so any commands later in this run see the new values.
 		export XDG_CONFIG_HOME="$xdg_config"
 		export XDG_DATA_HOME="$xdg_data"
@@ -1748,15 +1970,18 @@ cmd_migrate() {
 	# usable in one shot).
 	if [ "$MIGRATE_WITH_DEPS" = "1" ]; then
 		echo -e "${MAGENTA}[migrate]: Installing dependencies (--with-deps)${RESET}"
-		install_bat
-		install_clang_tools
-		install_essential
-		install_fd
-		install_lazygit
-		install_lua_ls
-		install_nvim
-		install_python3_venv
+		install_summary_reset
+		track_install "bat"                install_bat
+		track_install "clang-tools"        install_clang_tools
+		track_install "clipboard-provider" install_clipboard_provider
+		track_install "essential"          install_essential
+		track_install "fd"                 install_fd
+		track_install "lazygit"            install_lazygit
+		track_install "lua_ls"             install_lua_ls
+		track_install "nvim"               install_nvim
+		track_install "python3-venv"       install_python3_venv
 		# yazi / bat-extras / debug-tools are heavy; opt-in only.
+		install_summary_print
 	fi
 
 	# 4) Deploy the config tree.
