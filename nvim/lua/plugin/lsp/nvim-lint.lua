@@ -68,7 +68,7 @@ return {
 					"commitlint",
 				},
 				ignore_install = {},
-				automatic_installation = true,
+				automatic_installation = false,
 				quiet_mode = false,
 			})
 		end,
