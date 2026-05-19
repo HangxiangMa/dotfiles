@@ -11,7 +11,7 @@ local SERVERS = {
 	lua_ls = { mason = "lua-language-server", exe = "lua-language-server" },
 	marksman = { mason = "marksman", exe = "marksman" },
 	pyright = { mason = "pyright", exe = "pyright" },
-	rust_analyzer = { exe = "rust-analyzer", custom = "rust" }, -- installed via rustup, not mason
+	rust_analyzer = { mason = "rust-analyzer", exe = "rust-analyzer", custom = "rust" },
 	taplo = { mason = "taplo", exe = "taplo" },
 }
 
