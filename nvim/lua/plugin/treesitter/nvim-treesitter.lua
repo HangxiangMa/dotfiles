@@ -1,19 +1,14 @@
 return {
-	"nvim-treesitter/nvim-treesitter",
-	-- Pin to master: upstream main has dropped the legacy `configs.lua`
-	-- module that this config still uses. Stay on master until we migrate
-	-- to the new API.
-	branch = "master",
-	build = ":TSUpdate",
-	event = { "BufReadPre", "BufNewFile" },
-	dependencies = {
-		{ "nvim-treesitter/nvim-treesitter-textobjects", branch = "master" },
-	},
-	config = function()
-		local crisp = require("core.crisp")
-		require("nvim-treesitter.configs").setup({
-			-- A list of parser names, or "all" (the five listed parsers should always be installed)
-			ensure_installed = {
+	{
+		"nvim-treesitter/nvim-treesitter",
+		lazy = false,
+		build = ":TSUpdate",
+		config = function()
+			local crisp = require("core.crisp")
+
+			require("nvim-treesitter").setup({})
+
+			require("nvim-treesitter").install({
 				"bash",
 				"c",
 				"cmake",
@@ -24,7 +19,7 @@ return {
 				"markdown",
 				"markdown_inline",
 				"python",
-				"regex", -- needed by noice.nvim cmdline highlighting
+				"regex",
 				"ron",
 				"rust",
 				"toml",
@@ -32,72 +27,91 @@ return {
 				"vimdoc",
 				"yaml",
 				"doxygen",
-			},
-			-- install parsers synchronously (only applied to `ensure_installed`)
-			sync_install = false,
+			})
 
-			-- Automatically install missing parsers when entering buffer
-			-- Recommendation: set to false if you don't have `tree-sitter` CLI installed locally
-			auto_install = false,
-
-			-- List of parsers to ignore installing (or "all")
-			ignore_install = { "" },
-
-			highlight = {
-				enable = true,
-				-- Setting this to true will run `:h syntax` and tree-sitter at the same time.
-				-- Set this to `true` if you depend on 'syntax' being enabled (like for indentation).
-				-- Using this option may slow down your editor, and you may see some duplicate highlights.
-				-- Instead of true it can also be a list of languages
-				additional_vim_regex_highlighting = false,
-				disable = function(_, buf)
-					return crisp.isBigFile(buf)
+			vim.api.nvim_create_autocmd("FileType", {
+				callback = function(args)
+					if crisp.isBigFile(args.buf) then
+						return
+					end
+					pcall(vim.treesitter.start)
 				end,
-			},
-			indent = { enable = true, disable = { "yaml" } },
-			textobjects = {
-				select = {
-					enable = true,
-					lookahead = true,
-					keymaps = {
-						["af"] = "@function.outer",
-						["if"] = "@function.inner",
-						["ac"] = "@class.outer",
-						["ic"] = "@class.inner",
-						["aa"] = "@parameter.outer",
-						["ia"] = "@parameter.inner",
-						["a/"] = "@comment.outer",
-						["i/"] = "@comment.inner",
-					},
-				},
-				move = {
-					enable = true,
-					set_jumps = true,
-					goto_next_start = {
-						["]f"] = "@function.outer",
-						["]c"] = "@class.outer",
-						["]a"] = "@parameter.inner",
-					},
-					goto_next_end = {
-						["]F"] = "@function.outer",
-						["]C"] = "@class.outer",
-					},
-					goto_previous_start = {
-						["[f"] = "@function.outer",
-						["[c"] = "@class.outer",
-						["[a"] = "@parameter.inner",
-					},
-					goto_previous_end = {
-						["[F"] = "@function.outer",
-						["[C"] = "@class.outer",
-					},
-				},
-				swap = {
-					enable = true,
-					swap_next = { ["<leader>cna"] = "@parameter.inner" },
-					swap_previous = { ["<leader>cpa"] = "@parameter.inner" },
-				},
-			},
-		})
-	end,
+			})
+
+			vim.api.nvim_create_autocmd("FileType", {
+				pattern = { "yaml" },
+				callback = function()
+					vim.bo.indentexpr = ""
+				end,
+			})
+
+			vim.api.nvim_create_autocmd("FileType", {
+				callback = function()
+					if vim.bo.filetype ~= "yaml" then
+						vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+					end
+				end,
+			})
+		end,
+	},
+	{
+		"nvim-treesitter/nvim-treesitter-textobjects",
+		branch = "main",
+		event = { "BufReadPre", "BufNewFile" },
+		dependencies = { "nvim-treesitter/nvim-treesitter" },
+		config = function()
+			require("nvim-treesitter-textobjects").setup({
+				select = { lookahead = true },
+				move = { set_jumps = true },
+			})
+
+			local select = require("nvim-treesitter-textobjects.select")
+			local move = require("nvim-treesitter-textobjects.move")
+			local swap = require("nvim-treesitter-textobjects.swap")
+
+			-- select
+			local select_maps = {
+				["af"] = "@function.outer",
+				["if"] = "@function.inner",
+				["ac"] = "@class.outer",
+				["ic"] = "@class.inner",
+				["aa"] = "@parameter.outer",
+				["ia"] = "@parameter.inner",
+				["a/"] = "@comment.outer",
+				["i/"] = "@comment.inner",
+			}
+			for key, query in pairs(select_maps) do
+				vim.keymap.set({ "x", "o" }, key, function()
+					select.select_textobject(query, "textobjects")
+				end)
+			end
+
+			-- move
+			local move_maps = {
+				["]f"] = { "goto_next_start", "@function.outer" },
+				["]c"] = { "goto_next_start", "@class.outer" },
+				["]a"] = { "goto_next_start", "@parameter.inner" },
+				["]F"] = { "goto_next_end", "@function.outer" },
+				["]C"] = { "goto_next_end", "@class.outer" },
+				["[f"] = { "goto_previous_start", "@function.outer" },
+				["[c"] = { "goto_previous_start", "@class.outer" },
+				["[a"] = { "goto_previous_start", "@parameter.inner" },
+				["[F"] = { "goto_previous_end", "@function.outer" },
+				["[C"] = { "goto_previous_end", "@class.outer" },
+			}
+			for key, spec in pairs(move_maps) do
+				vim.keymap.set({ "n", "x", "o" }, key, function()
+					move[spec[1]](spec[2], "textobjects")
+				end)
+			end
+
+			-- swap
+			vim.keymap.set("n", "<leader>cna", function()
+				swap.swap_next("@parameter.inner")
+			end)
+			vim.keymap.set("n", "<leader>cpa", function()
+				swap.swap_previous("@parameter.inner")
+			end)
+		end,
+	},
 }
