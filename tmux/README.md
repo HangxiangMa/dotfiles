@@ -13,11 +13,6 @@ A small, opinionated tmux config plus a one-shot installer.
   - `christoomey/vim-tmux-navigator` — `C-h/j/k/l` jumps between tmux panes
     *and* vim splits seamlessly.
   - `tmux-plugins/tmux-yank` — system-clipboard integration for `y`.
-  - `tmux-plugins/tmux-resurrect` + `tmux-plugins/tmux-continuum` — save /
-    auto-restore sessions, windows, pane layout, cwd, and pane contents.
-    Auto-saves every 15 minutes; the conf prunes old snapshots so the
-    `~/.tmux/resurrect/` folder doesn't grow without bound (keeps the 100
-    newest, drops anything older than 30 days).
 - **Vim-aware fallback** — if TPM isn't installed, the conf still wires up a
   hand-rolled `C-h/j/k/l` smart-navigation as a fallback so the same keys
   work on a fresh machine.
@@ -45,14 +40,12 @@ The installer is idempotent. It will:
 1. Copy `tmux.conf` to `~/.tmux.conf` (existing file is moved aside to
    `~/.tmux.conf.bak-<timestamp>` first).
 2. Clone TPM into `~/.tmux/plugins/tpm` if missing.
-3. Run TPM's `install_plugins` so resurrect / continuum / yank / navigator
-   all land before you ever attach a session.
+3. Run TPM's `install_plugins` so yank / navigator land before you ever
+   attach a session.
 4. `source-file` the new conf into a running tmux server, if one is up.
 
 ## After install
 
-- `prefix + Ctrl-s` — manual save (resurrect)
-- `prefix + Ctrl-r` — manual restore (resurrect)
 - `prefix + I` — TPM plugin install/refresh (rare; the installer already did
   this once)
 - `prefix + r` — reload `~/.tmux.conf`

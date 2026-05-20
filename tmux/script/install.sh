@@ -12,7 +12,7 @@
 #      ~/.tmux.conf.bak-<timestamp> before overwriting).
 #   2. Install TPM       -> ~/.tmux/plugins/tpm  (cloned via git if missing).
 #   3. Install plugins   -> runs ~/.tmux/plugins/tpm/bin/install_plugins
-#      so tmux-resurrect / tmux-continuum / etc. land before first attach.
+#      so the declared plugins land before first attach.
 #   4. Reload (best-effort) -> tmux source-file ~/.tmux.conf, only if a
 #      tmux server is already running.
 
@@ -50,7 +50,7 @@ Usage: $0 [-y] [--dry-run] [help]
 
 Deploy this repo's tmux.conf to \$HOME/.tmux.conf, install TPM, then
 fetch the plugins it declares (tmux-sensible, tmux-yank,
-vim-tmux-navigator, tmux-resurrect, tmux-continuum).
+vim-tmux-navigator).
 
 Options:
     -y, --yes      Assume yes to every prompt (non-interactive).
@@ -135,8 +135,7 @@ else
         ok "TPM cloned"
     else
         warn "skipped TPM install — plugin block in tmux.conf will fall back"
-        warn "to the built-in vim-aware navigation but resurrect/continuum"
-        warn "won't be available."
+        warn "to the built-in vim-aware navigation."
     fi
 fi
 
