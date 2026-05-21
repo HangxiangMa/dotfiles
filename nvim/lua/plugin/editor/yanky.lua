@@ -29,7 +29,6 @@ return {
 		},
 		picker = {
 			select = { action = nil },
-			telescope = { use_default_mappings = true },
 		},
 		highlight = {
 			on_put = true,
