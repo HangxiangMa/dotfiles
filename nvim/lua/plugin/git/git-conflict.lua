@@ -14,8 +14,16 @@ return {
 		"GitConflictPrevConflict",
 		"GitConflictListQf",
 	},
+	keys = {
+		{ "<leader>gxo", "<cmd>GitConflictChooseOurs<cr>", desc = "Conflict: ours" },
+		{ "<leader>gxt", "<cmd>GitConflictChooseTheirs<cr>", desc = "Conflict: theirs" },
+		{ "<leader>gxb", "<cmd>GitConflictChooseBoth<cr>", desc = "Conflict: both" },
+		{ "<leader>gx0", "<cmd>GitConflictChooseNone<cr>", desc = "Conflict: none" },
+		{ "<leader>gxn", "<cmd>GitConflictNextConflict<cr>", desc = "Conflict: next" },
+		{ "<leader>gxp", "<cmd>GitConflictPrevConflict<cr>", desc = "Conflict: prev" },
+	},
 	opts = {
-		default_mappings = true, -- co/ct/cb/c0 + ]x/[x
+		default_mappings = false,
 		default_commands = true,
 		disable_diagnostics = false,
 		list_opener = "copen",

@@ -86,14 +86,6 @@ return {
 			{ "]a", desc = "Next argument" },
 			{ "[a", desc = "Prev argument" },
 
-			-- git-conflict: act on conflict markers in any buffer
-			{ "co", desc = "Conflict: ours" },
-			{ "ct", desc = "Conflict: theirs" },
-			{ "cb", desc = "Conflict: both" },
-			{ "c0", desc = "Conflict: none" },
-			{ "]x", desc = "Conflict: next" },
-			{ "[x", desc = "Conflict: prev" },
-
 			-- Yanky put / cycle
 			{ "y", desc = "Yank", mode = { "n", "x" } },
 			{ "p", desc = "Put after", mode = { "n", "x" } },
@@ -242,6 +234,7 @@ return {
 			{ "<leader>gb", "<cmd>FzfLua git_branches<cr>", desc = "Checkout branch" },
 			{ "<leader>gc", "<cmd>FzfLua git_commits<cr>", desc = "Checkout commit" },
 			{ "<leader>gd", "<cmd>Gitsigns diffthis HEAD<cr>", desc = "Diffthis" },
+			{ "<leader>gx", group = "Conflict" },
 
 			-- diagnostics
 			{ "<leader>a", group = "Diagnostics" },
@@ -275,8 +268,9 @@ return {
 			-- Neotest is currently disabled; keys are registered by the plugin's own
 			-- spec when re-enabled. No declarations here.
 
-			{ "<leader>M", group = "Makers" },
-			{ "<leader>Mg", group = "Groups" },
+			-- marker-groups: <leader>M is the user-set prefix in marker-groups.lua.
+			{ "<leader>M", group = "Marker Groups" },
+			{ "<leader>Mg", group = "Group" },
 
 			-- Replace (grug-far)
 			{ "<leader>r", group = "Replace" },
@@ -306,9 +300,9 @@ return {
 			-- (rustaceanvim) and Crates so all language-server-driven keys
 			-- live under one prefix.
 			{ "<leader>c", group = "Code" },
-			{ "<leader>cn", group = "Swap-Next" },
+			{ "<leader>cn", group = "Swap Next" },
 			{ "<leader>cna", desc = "Swap parameter forward" },
-			{ "<leader>cp", group = "Swap-Prev" },
+			{ "<leader>cp", group = "Swap Prev" },
 			{ "<leader>cpa", desc = "Swap parameter backward" },
 
 			-- CscopeMaps registers <leader>m* itself with which-key (group "cscope").
@@ -350,10 +344,10 @@ return {
 			{ "<leader>cRt", "<cmd>RustLsp syntaxTree<cr>", desc = "Rust syntax tree" },
 			{ "<leader>cRv", "<cmd>RustLsp view hir<cr>", desc = "View rust HIR" },
 			{ "<leader>cRV", "<cmd>RustLsp vim mir<cr>", desc = "View rust MIR" },
-			{ "<leader>cRs", group = "WorkspaceSymbol" },
+			{ "<leader>cRs", group = "Workspace Symbol" },
 			{ "<leader>cRst", "<cmd>RustLsp workspaceSymbol onlyTypes<cr>", desc = "Only type symbols" },
 			{ "<leader>cRsa", "<cmd>RustLsp workspaceSymbol allSymbols<cr>", desc = "Show all symbols" },
-			{ "<leader>cRf", group = "FlyCheck" },
+			{ "<leader>cRf", group = "Fly Check" },
 			{ "<leader>cRfr", "<cmd>RustLsp flyCheck run<cr>", desc = "Run check" },
 			{ "<leader>cRfc", "<cmd>RustLsp flyCheck clear<cr>", desc = "Clear check" },
 			{ "<leader>cRfn", "<cmd>RustLsp flyCheck cancel<cr>", desc = "Cancel check" },
