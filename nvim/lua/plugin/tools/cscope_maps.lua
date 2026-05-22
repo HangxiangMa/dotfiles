@@ -38,6 +38,7 @@ return {
 			prefix = "<leader>m", -- prefix to trigger maps
 
 			-- cscope related defaults
+			skip_picker_for_single_result = true,
 			cscope = {
 				-- location of cscope db file
 				db_file = "./cscope.out", -- DB or table of DBs
