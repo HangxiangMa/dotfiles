@@ -37,6 +37,10 @@ DEFAULT_YAZI_VERSION="26.5.6"
 MIGRATE_CONFIG_TARGET=""
 MIGRATE_XDG_BASE=""
 MIGRATE_WITH_DEPS=0
+# When 1, deploy_nvim_config installs $XDG_CONFIG_HOME/nvim as a symlink to
+# the in-repo nvim/ tree (edits to the repo take effect immediately).
+# Default 0 keeps the original cp -a behaviour.
+MIGRATE_AS_SYMLINK=0
 
 # sync: where to cache last-known-good upstream versions.
 SYNC_CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/nvim-installer"
@@ -87,6 +91,8 @@ show_help() {
 	echo "                            Useful when \$HOME has a quota."
 	echo "    --with-deps           - (migrate only) Also run install_nvim + essentials + bat/clang-tools/"
 	echo "                            clipboard-provider/fd/lazygit/lua_ls/python3-venv before deploying the config"
+	echo "    --symlink             - Install \$XDG_CONFIG_HOME/nvim as a symlink to the in-repo nvim/ tree"
+	echo "                            instead of copying. Edits to the repo take effect immediately."
 	echo -e "    -y                    - Automatically answer 'yes' to sudo prompts\n"
 	echo -e "\nEnvironment:"
 	echo "    GITHUB_TOKEN / GH_TOKEN - Optional. When set, GitHub API calls are authenticated"
@@ -1221,12 +1227,18 @@ install_debug_tools() {
 }
 
 install_nvim_config() {
-	echo -e "${MAGENTA}[nvim]: Update neovim configuration files? (y/n)${RESET}"
+	echo -e "${MAGENTA}[nvim]: Update neovim configuration files?${RESET}"
+	echo -e "${MAGENTA}        [y] copy (default)  [s] symlink to repo  [n] skip${RESET}"
+	local update_config=""
 	if [ "$ASSUME_YES" = "1" ]; then
-		echo "y (auto)"
-		local update_config="y"
+		if [ "$MIGRATE_AS_SYMLINK" = "1" ]; then
+			echo "s (auto, --symlink)"
+			update_config="s"
+		else
+			echo "y (auto)"
+			update_config="y"
+		fi
 	else
-		local update_config=""
 		if { true </dev/tty; } 2>/dev/null; then
 			read -r update_config </dev/tty || update_config=""
 		else
@@ -1234,9 +1246,17 @@ install_nvim_config() {
 		fi
 	fi
 
-	if [[ $update_config == 'n' || $update_config == 'N' ]]; then
+	case "$update_config" in
+	n | N)
 		return 0
-	fi
+		;;
+	s | S)
+		MIGRATE_AS_SYMLINK=1
+		;;
+	*)
+		MIGRATE_AS_SYMLINK=0
+		;;
+	esac
 
 	# Prefer the in-repo nvim/ dir we're being run from; fall back to a
 	# remote clone only if this script is somehow detached from its repo
@@ -1244,9 +1264,17 @@ install_nvim_config() {
 	local target_parent="${XDG_CONFIG_HOME:-$HOME/.config}"
 	local src
 	if src="$(repo_nvim_dir)"; then
-		echo -e "${MAGENTA}[nvim]: Deploying config from local repo: ${src}${RESET}"
+		if [ "$MIGRATE_AS_SYMLINK" = "1" ]; then
+			echo -e "${MAGENTA}[nvim]: Symlinking config from local repo: ${src}${RESET}"
+		else
+			echo -e "${MAGENTA}[nvim]: Deploying config from local repo: ${src}${RESET}"
+		fi
 		deploy_nvim_config "$target_parent" || return 1
 	else
+		if [ "$MIGRATE_AS_SYMLINK" = "1" ]; then
+			echo -e "${RED}[ERROR] --symlink/s requires a local repo clone (script must live at <repo>/nvim/script/requirements.sh)${RESET}"
+			return 1
+		fi
 		echo -e "${YELLOW}[nvim]: Local repo not detected; falling back to remote clone${RESET}"
 		local tmp
 		tmp=$(mktemp -d)
@@ -1867,7 +1895,9 @@ write_env_to_rc() {
 }
 
 # Copy the in-repo nvim/ tree to <target>/nvim, replacing any existing one
-# but preserving sibling files (e.g. <target>/lua/ from another tool).
+# but preserving sibling files (e.g. <target>/lua/ from another tool). When
+# MIGRATE_AS_SYMLINK=1, install <target>/nvim as a symlink to the repo tree
+# instead of copying.
 deploy_nvim_config() {
 	local target_parent="$1" # e.g. "$XDG_CONFIG_HOME"; we'll create $1/nvim
 	local src
@@ -1884,7 +1914,7 @@ deploy_nvim_config() {
 	}
 
 	local dst="${target_parent%/}/nvim"
-	if [ -e "$dst" ]; then
+	if [ -e "$dst" ] || [ -L "$dst" ]; then
 		# Backup once per run; users may want to roll back.
 		local backup="${dst}.bak-$(date +%Y%m%d-%H%M%S)"
 		echo -e "${YELLOW}[migrate] Existing config at ${dst}; moving to ${backup}${RESET}"
@@ -1892,6 +1922,22 @@ deploy_nvim_config() {
 			echo -e "${RED}[migrate] Failed to move existing config aside${RESET}"
 			return 1
 		}
+		# lazy-lock.json lives in the deployed dir but is .gitignored in the
+		# repo, so a fresh symlink would have no lockfile. Carry it over from
+		# the backup so plugin versions stay pinned across redeploys.
+		if [ "$MIGRATE_AS_SYMLINK" = "1" ] && [ -f "$backup/lazy-lock.json" ] \
+			&& [ ! -f "$src/lazy-lock.json" ]; then
+			cp "$backup/lazy-lock.json" "$src/lazy-lock.json"
+		fi
+	fi
+
+	if [ "$MIGRATE_AS_SYMLINK" = "1" ]; then
+		ln -s "$src" "$dst" || {
+			echo -e "${RED}[migrate] Failed to symlink ${dst} -> ${src}${RESET}"
+			return 1
+		}
+		echo -e "${GREEN}[migrate] Symlinked ${dst} -> ${src}${RESET}"
+		return 0
 	fi
 
 	# Use rsync if available (preserves perms and skips .git noise); cp -a is
@@ -2042,6 +2088,9 @@ process_arguments() {
 			;;
 		--with-deps)
 			MIGRATE_WITH_DEPS=1
+			;;
+		--symlink)
+			MIGRATE_AS_SYMLINK=1
 			;;
 		all | basic | component | migrate | setup | sync | help)
 			if [ "$operation_found" = true ]; then
