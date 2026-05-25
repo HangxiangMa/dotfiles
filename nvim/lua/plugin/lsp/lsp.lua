@@ -189,7 +189,8 @@ return {
 					end
 
 					local ok, supported = pcall(client.supports_method, client, "textDocument/codeLens")
-					if ok and supported then
+					local ft = vim.bo[ev.buf].filetype
+					if ok and supported and ft ~= "c" and ft ~= "cpp" then
 						local cl_group = vim.api.nvim_create_augroup("user_lsp_codelens_" .. ev.buf, { clear = false })
 						vim.api.nvim_create_autocmd({ "BufEnter", "InsertLeave" }, {
 							group = cl_group,

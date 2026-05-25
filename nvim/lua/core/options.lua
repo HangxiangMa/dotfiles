@@ -16,8 +16,9 @@ vim.g.loaded_perl_provider = 0
 vim.g.loaded_python3_provider = 0
 vim.g.loaded_ruby_provider = 0
 
--- open doxygen syntax highlight
-vim.g.load_doxygen_syntax = 1
+-- doxygen highlighting is provided by the treesitter `doxygen` parser
+-- injected into C/C++ comments; the Vim regex syntax is redundant.
+vim.g.load_doxygen_syntax = 0
 
 -- window & popup transparency
 vim.opt.pumblend = 10
