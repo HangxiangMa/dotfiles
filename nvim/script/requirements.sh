@@ -1876,6 +1876,12 @@ repo_nvim_dir() {
 # Append a single-line "export" declaration to the user's shell rc, idempotently.
 # Differs from append_path_to_rc by matching on the variable name, so re-runs
 # overwrite stale values rather than stacking duplicates.
+#
+# When the variable already exists, we replace the FIRST definition in-place
+# (and drop any later duplicates). This preserves ordering: lines that
+# reference $VAR (e.g. `[ -s "$NVM_DIR/nvm.sh" ] && . ...`) remain AFTER
+# the definition. A naive strip-and-append would move the export to EOF,
+# inverting the dependency and leaving $NVM_DIR empty when nvm.sh is sourced.
 write_env_to_rc() {
 	local var="$1" value="$2"
 	local rc=""
@@ -1888,13 +1894,26 @@ write_env_to_rc() {
 	fi
 	[ -f "$rc" ] || touch "$rc"
 
-	# Strip any existing "export VAR=" line we put there before, then append
-	# the fresh one. We also drop bare definitions ("VAR=...") to be safe.
-	local tmp
-	tmp=$(mktemp)
-	grep -v -E "^[[:space:]]*(export[[:space:]]+)?${var}=" "$rc" >"$tmp" || true
-	mv "$tmp" "$rc"
-	echo "export ${var}=\"${value}\"" >>"$rc"
+	local new_line="export ${var}=\"${value}\""
+
+	if grep -qE "^[[:space:]]*(export[[:space:]]+)?${var}=" "$rc"; then
+		local tmp
+		tmp=$(mktemp)
+		awk -v var="$var" -v replacement="$new_line" '
+			BEGIN { replaced = 0 }
+			{
+				if ($0 ~ "^[[:space:]]*export[[:space:]]+" var "=" ||
+				    $0 ~ "^[[:space:]]*" var "=") {
+					if (!replaced) { print replacement; replaced = 1 }
+				} else {
+					print
+				}
+			}
+		' "$rc" >"$tmp"
+		mv "$tmp" "$rc"
+	else
+		echo "$new_line" >>"$rc"
+	fi
 	echo -e "${CYAN}[INFO] ${var} -> ${value} (${rc})${RESET}"
 }
 
