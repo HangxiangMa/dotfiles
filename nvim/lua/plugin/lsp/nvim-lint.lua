@@ -41,7 +41,9 @@ return {
 				group = lint_augroup,
 				callback = function()
 					lint.try_lint()
-					lint.try_lint("codespell")
+					if vim.fn.executable("codespell") == 1 then
+						lint.try_lint("codespell")
+					end
 				end,
 			})
 		end,
