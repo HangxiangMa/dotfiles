@@ -829,11 +829,14 @@ install_yazi() {
 		fi
 	fi
 
+	local cargo_base="${MIGRATE_XDG_BASE:-$HOME}"
+	export CARGO_HOME="${CARGO_HOME:-$cargo_base/.cargo}"
+	export RUSTUP_HOME="${RUSTUP_HOME:-$cargo_base/.rustup}"
 	if ! command -v rustup &>/dev/null; then
 		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-		echo '. "$HOME/.cargo/env"' >>"$HOME/.bashrc"
+		echo '. "'"$CARGO_HOME"'/env"' >>"$HOME/.bashrc"
 	fi
-	source "$HOME/.cargo/env"
+	source "$CARGO_HOME/env"
 	rustup update
 	# Upstream packaging: since yazi 26.x, `yazi-fm`/`yazi-cli` on crates.io
 	# refuse to be built via `cargo install` directly (they require the
@@ -1334,7 +1337,8 @@ install_essential() {
 	fi
 
 	# Install/update NVM and Node.js
-	local nvm_dir="${NVM_DIR:-$HOME/.nvm}"
+	local nvm_base="${MIGRATE_XDG_BASE:-$HOME}"
+	local nvm_dir="${NVM_DIR:-$nvm_base/.nvm}"
 	if ! command -v nvm &>/dev/null; then
 		echo -e "${YELLOW}[INFO] Installing nvm...${RESET}"
 		local auth_args=()
@@ -1999,10 +2003,13 @@ cmd_migrate() {
 		else
 			rc_base="$MIGRATE_XDG_BASE"
 		fi
+		write_env_to_rc CARGO_HOME "${rc_base}/.cargo"
+		write_env_to_rc NVM_DIR "${rc_base}/.nvm"
+		write_env_to_rc RUSTUP_HOME "${rc_base}/.rustup"
+		write_env_to_rc XDG_CACHE_HOME "${rc_base}/.cache"
 		write_env_to_rc XDG_CONFIG_HOME "${rc_base}/.config"
 		write_env_to_rc XDG_DATA_HOME "${rc_base}/.local/share"
 		write_env_to_rc XDG_STATE_HOME "${rc_base}/.local/state"
-		write_env_to_rc XDG_CACHE_HOME "${rc_base}/.cache"
 		write_env_to_rc NVIM_LOG_FILE "${rc_base}/.local/state/nvim/nvim.log"
 		# Also export NOW so any commands later in this run see the new values.
 		export XDG_CONFIG_HOME="$xdg_config"
