@@ -1727,6 +1727,18 @@ cmd_setup() {
 	fi
 	echo -e "${CYAN}[setup] prefix = ${DEFAULT_PATH}${RESET}"
 
+	# Config deploy method -----------------------------------------------
+	if [ "$MIGRATE_AS_SYMLINK" != "1" ]; then
+		local deploy_method
+		deploy_method="$(_tui_menu "Config deploy method" \
+			copy    "Copy config files into XDG_CONFIG_HOME (standalone)" \
+			symlink "Symlink XDG_CONFIG_HOME/nvim to the repo tree (edits reflect instantly)")" || {
+				echo "[abort]"; return 1
+			}
+		[ "$deploy_method" = "symlink" ] && MIGRATE_AS_SYMLINK=1
+		echo -e "${CYAN}[setup] deploy = ${deploy_method}${RESET}"
+	fi
+
 	# Run ----------------------------------------------------------------
 	install_summary_reset
 	case "$profile" in
@@ -1937,7 +1949,19 @@ deploy_nvim_config() {
 	}
 
 	local dst="${target_parent%/}/nvim"
-	if [ -e "$dst" ] || [ -L "$dst" ]; then
+	if [ -L "$dst" ]; then
+		# Existing target is a symlink — no real data to back up; just
+		# carry over lazy-lock.json from the old target if needed, then
+		# remove the link.
+		local old_target
+		old_target="$(readlink -f "$dst" 2>/dev/null || true)"
+		if [ -n "$old_target" ] && [ -f "$old_target/lazy-lock.json" ] \
+			&& [ ! -f "$src/lazy-lock.json" ]; then
+			cp "$old_target/lazy-lock.json" "$src/lazy-lock.json"
+		fi
+		echo -e "${YELLOW}[migrate] Removing existing symlink ${dst}${RESET}"
+		rm -f "$dst"
+	elif [ -e "$dst" ]; then
 		# Backup once per run; users may want to roll back.
 		local backup="${dst}.bak-$(date +%Y%m%d-%H%M%S)"
 		echo -e "${YELLOW}[migrate] Existing config at ${dst}; moving to ${backup}${RESET}"
