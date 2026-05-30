@@ -61,27 +61,32 @@ return {
 				jumpBot = "]",
 			},
 		},
-		provider_selector = function(_, filetype, buftype)
-			local function handleFallbackException(bufnr, err, providerName)
+		provider_selector = function(bufnr, filetype, buftype)
+			if filetype == "" or buftype == "nofile" then
+				return "indent"
+			end
+			if require("core.crisp").isBigFile(bufnr) then
+				return "indent"
+			end
+
+			local function handleFallbackException(buf, err, providerName)
 				if type(err) == "string" and err:match("UfoFallbackException") then
-					return require("ufo").getFolds(bufnr, providerName)
+					return require("ufo").getFolds(buf, providerName)
 				else
 					return require("promise").reject(err)
 				end
 			end
 
-			-- only use indent until a file is opened
-			return (filetype == "" or buftype == "nofile") and "indent"
-				or function(bufnr)
-					return require("ufo")
-						.getFolds(bufnr, "lsp")
-						:catch(function(err)
-							return handleFallbackException(bufnr, err, "treesitter")
-						end)
-						:catch(function(err)
-							return handleFallbackException(bufnr, err, "indent")
-						end)
-				end
+			return function(buf)
+				return require("ufo")
+					.getFolds(buf, "lsp")
+					:catch(function(err)
+						return handleFallbackException(buf, err, "treesitter")
+					end)
+					:catch(function(err)
+						return handleFallbackException(buf, err, "indent")
+					end)
+			end
 		end,
 		fold_virt_text_handler = handler,
 	},

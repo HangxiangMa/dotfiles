@@ -372,6 +372,29 @@ end
 -- Async Processing Engine
 --
 
+---Compute the viewport render range for a buffer (visible area ± 2 pages).
+---Returns nil if the buffer is not displayed or not a big file (render all).
+---@param bufnr integer
+---@return integer|nil, integer|nil  render_top (0-indexed), render_bot (0-indexed)
+function H.get_viewport_range(bufnr)
+	local crisp = require("core.crisp")
+	if not crisp.isBigFile(bufnr) then
+		return nil, nil
+	end
+
+	local win = vim.fn.bufwinid(bufnr)
+	if win == -1 then
+		return nil, nil
+	end
+
+	local win_top = vim.fn.line("w0", win) - 1
+	local win_bot = vim.fn.line("w$", win) - 1
+	local page_height = vim.api.nvim_win_get_height(win)
+	local margin = page_height * 2
+
+	return math.max(0, win_top - margin), win_bot + margin
+end
+
 ---Process inactive regions asynchronously with proper coroutine management
 ---@param filename string Buffer filename
 ---@param regions InactiveRegion[] Regions to process
@@ -397,13 +420,19 @@ function H.process_inactive_regions_async(filename, regions, start_time)
 		return
 	end
 
+	local render_top, render_bot = H.get_viewport_range(bufnr)
+
 	local co = coroutine.create(function()
-		return H.process_regions_coroutine(bufnr, filename, regions, start_time)
+		return H.process_regions_coroutine(bufnr, filename, regions, start_time, render_top, render_bot)
 	end)
 
 	-- Stores the reference to the new coroutine and resumes it safely.
 	state.active_coroutines[filename] = co
 	H.resume_coroutine_safely(filename, co)
+
+	if render_top then
+		H.setup_viewport_scroll_handler(bufnr, filename)
+	end
 end
 
 ---Safely resume a coroutine with error handling
@@ -433,13 +462,60 @@ function H.resume_coroutine_safely(filename, co)
 	end
 end
 
+---Set up a WinScrolled handler for incremental viewport rendering on big files.
+---@param bufnr integer Buffer number
+---@param filename string Buffer filename
+function H.setup_viewport_scroll_handler(bufnr, filename)
+	local state = InactiveRegions._state
+	local augroup_name = "InactiveRegions_scroll_" .. bufnr
+	vim.api.nvim_create_augroup(augroup_name, { clear = true })
+
+	local scroll_timer = nil
+
+	vim.api.nvim_create_autocmd("WinScrolled", {
+		group = augroup_name,
+		buffer = bufnr,
+		callback = function()
+			if scroll_timer then
+				vim.fn.timer_stop(scroll_timer)
+			end
+			scroll_timer = vim.fn.timer_start(100, function()
+				scroll_timer = nil
+				if not vim.api.nvim_buf_is_valid(bufnr) then
+					return
+				end
+				local regions = state.region_cache[filename]
+				if not regions or #regions == 0 then
+					return
+				end
+				local render_top, render_bot = H.get_viewport_range(bufnr)
+				if not render_top then
+					return
+				end
+
+				vim.api.nvim_buf_clear_namespace(bufnr, InactiveRegions.ns, 0, -1)
+
+				local start_time = vim.loop.hrtime()
+				state.active_coroutines[filename] = nil
+				local co = coroutine.create(function()
+					return H.process_regions_coroutine(bufnr, filename, regions, start_time, render_top, render_bot)
+				end)
+				state.active_coroutines[filename] = co
+				H.resume_coroutine_safely(filename, co)
+			end)
+		end,
+	})
+end
+
 ---Main coroutine function for processing regions
 ---@param bufnr integer Buffer number
 ---@param filename string Buffer filename
 ---@param regions InactiveRegion[] Regions to process
 ---@param start_time integer Request start time
+---@param render_top integer|nil Viewport top boundary (0-indexed), nil = render all
+---@param render_bot integer|nil Viewport bottom boundary (0-indexed), nil = render all
 ---@return boolean Should continue processing
-function H.process_regions_coroutine(bufnr, filename, regions, start_time)
+function H.process_regions_coroutine(bufnr, filename, regions, start_time, render_top, render_bot)
 	local state = InactiveRegions._state
 	local metrics = state.performance_metrics
 
@@ -468,6 +544,12 @@ function H.process_regions_coroutine(bufnr, filename, regions, start_time)
 
 	-- Iterates over each inactive region provided by the LSP.
 	for region_idx, region in ipairs(regions) do
+		-- For big files, skip regions entirely outside the viewport range.
+		if render_top and (region["end"].line < render_top or region.start.line > render_bot) then
+			H.log("Skipping region %d/%d (outside viewport)", region_idx, #regions)
+			goto continue_region
+		end
+
 		H.log("Processing region %d/%d", region_idx, #regions)
 
 		local highlights_batch = {}
@@ -522,6 +604,7 @@ function H.process_regions_coroutine(bufnr, filename, regions, start_time)
 		H.apply_highlight_batch(bufnr, highlights_batch)
 
 		coroutine.yield(true)
+		::continue_region::
 	end
 
 	metrics.total_regions_processed = metrics.total_regions_processed + #regions
