@@ -228,6 +228,7 @@ function H.create_initial_state()
 		pending_updates = {},
 		debounce_timers = {},
 		active_coroutines = {},
+		scroll_timers = {},
 		performance_metrics = {
 			total_regions_processed = 0,
 			total_highlights_applied = 0,
@@ -468,19 +469,26 @@ end
 function H.setup_viewport_scroll_handler(bufnr, filename)
 	local state = InactiveRegions._state
 	local augroup_name = "InactiveRegions_scroll_" .. bufnr
-	vim.api.nvim_create_augroup(augroup_name, { clear = true })
 
-	local scroll_timer = nil
+	-- Stop any in-flight timer from a previous handler before clearing the augroup
+	local prev_timer = state.scroll_timers and state.scroll_timers[bufnr]
+	if prev_timer then
+		vim.fn.timer_stop(prev_timer)
+		state.scroll_timers[bufnr] = nil
+	end
+
+	vim.api.nvim_create_augroup(augroup_name, { clear = true })
 
 	vim.api.nvim_create_autocmd("WinScrolled", {
 		group = augroup_name,
 		buffer = bufnr,
 		callback = function()
-			if scroll_timer then
-				vim.fn.timer_stop(scroll_timer)
+			local cur_timer = state.scroll_timers and state.scroll_timers[bufnr]
+			if cur_timer then
+				vim.fn.timer_stop(cur_timer)
 			end
-			scroll_timer = vim.fn.timer_start(100, function()
-				scroll_timer = nil
+			state.scroll_timers[bufnr] = vim.fn.timer_start(100, function()
+				state.scroll_timers[bufnr] = nil
 				if not vim.api.nvim_buf_is_valid(bufnr) then
 					return
 				end
@@ -493,7 +501,7 @@ function H.setup_viewport_scroll_handler(bufnr, filename)
 					return
 				end
 
-				vim.api.nvim_buf_clear_namespace(bufnr, InactiveRegions.ns, 0, -1)
+				vim.api.nvim_buf_clear_namespace(bufnr, InactiveRegions.ns, render_top, render_bot + 1)
 
 				local start_time = vim.loop.hrtime()
 				state.active_coroutines[filename] = nil
