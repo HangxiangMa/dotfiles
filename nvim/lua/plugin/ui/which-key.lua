@@ -225,6 +225,7 @@ return {
 			{ "<leader>gn", "<cmd>lua require 'gitsigns'.next_hunk()<cr>", desc = "Next Hunk" },
 			{ "<leader>gp", "<cmd>lua require 'gitsigns'.prev_hunk()<cr>", desc = "Prev Hunk" },
 			{ "<leader>gl", "<cmd>lua require 'gitsigns'.blame_line()<cr>", desc = "Blame" },
+			{ "<leader>gB", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle Line Blame" },
 			{ "<leader>gr", "<cmd>lua require 'gitsigns'.reset_hunk()<cr>", desc = "Reset Hunk" },
 			{ "<leader>gR", "<cmd>lua require 'gitsigns'.reset_buffer()<cr>", desc = "Reset Buffer" },
 			{ "<leader>gs", "<cmd>lua require 'gitsigns'.stage_hunk()<cr>", desc = "Stage Hunk" },
@@ -261,6 +262,9 @@ return {
 
 			{ "<leader>ac", "<cmd>FzfLua diagnostics_document<cr>", desc = "Diagnostics(Buffer)" },
 			{ "<leader>ar", "<cmd>FzfLua diagnostics_workspace<cr>", desc = "Diagnostics(Workspace)" },
+			{ "<leader>aN", "<cmd>Noice history<cr>", desc = "Noice History" },
+			{ "<leader>aE", "<cmd>Noice errors<cr>", desc = "Noice Errors" },
+			{ "<leader>aD", "<cmd>Noice dismiss<cr>", desc = "Noice Dismiss" },
 
 			-- Dap (nvim-dap is currently disabled; keys are registered by the plugin
 			-- itself via its `keys` spec when re-enabled. No declarations here.)

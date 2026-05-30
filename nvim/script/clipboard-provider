@@ -21,7 +21,8 @@ main() {
       slurp
       for p in $COPY_PROVIDERS; do
         $p-provider copy && status=0
-      done ;;
+      done
+      cleanup ;;
 
     paste)
       for p in $PASTE_PROVIDERS; do
@@ -32,9 +33,12 @@ main() {
   exit $status
 }
 
-# N.B. buffer is global for simplicity
-slurp() { buffer=$(base64); }
-spit() { base64 --decode <<<"$buffer"; }
+slurp() {
+  SLURP_FILE=$(mktemp)
+  cat > "$SLURP_FILE"
+}
+spit() { cat "$SLURP_FILE"; }
+cleanup() { rm -f "$SLURP_FILE"; }
 
 tmux-provider() {
   [[ -n $TMUX ]] || return
@@ -84,7 +88,7 @@ xclip-provider() {
 osc52-provider() {
   [[ -n "$TTY" ]] || return
   case $1 in
-    copy) printf $'\e]52;c;%s\a' "$buffer" > "$TTY" ;;
+    copy) printf $'\e]52;c;%s\a' "$(base64 -w 0 < "$SLURP_FILE")" > "$TTY" ;;
     paste) return 1 ;;
   esac
 }
