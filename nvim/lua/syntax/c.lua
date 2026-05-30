@@ -46,8 +46,8 @@ function M.apply(bufnr)
 	syn_in_buf(bufnr, [[syn keyword cTodo contained BUG NOTE]])
 
 	if get_g("cpp_function_highlight", 1) ~= 0 then
-		syn_in_buf(bufnr, [[syn match cUserFunction "\<\h\w*\ze\_s\{-}(\%(\*\h\w*)\_s\{-}(\)\@!"]])
-		syn_in_buf(bufnr, [[syn match cUserFunctionPointer "\%((\s*\*\s*\)\@6<=\h\w*\ze\s*)\_s\{-}(.*)"]])
+		syn_in_buf(bufnr, [[syn match cUserFunction "\<\h\w*\ze\s*(\%(\*\h\w*)\s*(\)\@!"]])
+		syn_in_buf(bufnr, [[syn match cUserFunctionPointer "\%((\s*\*\s*\)\@6<=\h\w*\ze\s*)\s*(.*)"]])
 		vim.api.nvim_set_hl(0, "cUserFunction", { link = "Function" })
 		vim.api.nvim_set_hl(0, "cUserFunctionPointer", { link = "Function" })
 	end
