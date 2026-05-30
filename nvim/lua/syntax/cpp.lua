@@ -39,6 +39,9 @@ end
 
 function M.apply(bufnr)
 	bufnr = bufnr or 0
+	if vim.bo[bufnr].filetype == "bigfile" then
+		return
+	end
 	-- Use modern Neovim API for buffer options
 	local ft = vim.bo[bufnr].filetype
 

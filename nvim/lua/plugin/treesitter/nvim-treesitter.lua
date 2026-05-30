@@ -5,8 +5,6 @@ return {
 		lazy = false,
 		build = ":TSUpdate",
 		config = function()
-			local crisp = require("core.crisp")
-
 			require("nvim-treesitter").setup({})
 
 			require("nvim-treesitter").install({
@@ -32,7 +30,7 @@ return {
 
 			vim.api.nvim_create_autocmd("FileType", {
 				callback = function(args)
-					if crisp.isBigFile(args.buf) then
+					if vim.bo[args.buf].filetype == "bigfile" then
 						return
 					end
 					pcall(vim.treesitter.start)

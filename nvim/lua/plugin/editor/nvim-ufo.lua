@@ -65,7 +65,7 @@ return {
 			if filetype == "" or buftype == "nofile" then
 				return "indent"
 			end
-			if require("core.crisp").isBigFile(bufnr) then
+			if vim.bo[bufnr].filetype == "bigfile" then
 				return "indent"
 			end
 

@@ -2,7 +2,6 @@ return {
 	"lewis6991/gitsigns.nvim",
 	event = "BufReadPre",
 	config = function()
-		local crisp = require("core.crisp")
 		require("gitsigns").setup({
 			signs = {
 				add = { text = "│" },
@@ -40,7 +39,7 @@ return {
 				col = 1,
 			},
 			on_attach = function(bufnr)
-				if crisp.isBigFile(bufnr) then
+				if vim.bo[bufnr].filetype == "bigfile" then
 					vim.b[bufnr].gitsigns_current_line_blame = false
 				end
 			end,
