@@ -16,15 +16,13 @@ end
 function Crisp.isBigFile(bufnr)
 	local maxSize = 1024 * 1024 -- 1MB
 	local maxLine = 2048
-	local ok, stats = pcall((vim.uv or vim.loop).fs_stat, vim.api.nvim_buf_get_name(bufnr))
 	local lineCount = vim.api.nvim_buf_line_count(bufnr)
-	if ok and stats then
-		if stats.size > maxSize then
-			return true
-		end
-		if lineCount > maxLine then
-			return true
-		end
+	if lineCount > maxLine then
+		return true
+	end
+	local ok, stats = pcall((vim.uv or vim.loop).fs_stat, vim.api.nvim_buf_get_name(bufnr))
+	if ok and stats and stats.size > maxSize then
+		return true
 	end
 	return false
 end
