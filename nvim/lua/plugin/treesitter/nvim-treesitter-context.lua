@@ -13,7 +13,7 @@ return {
 			separator = nil,
 			zindex = 10,
 			on_attach = function(buf)
-				return not require("core.crisp").isBigFile(buf)
+				return vim.bo[buf].filetype ~= "bigfile"
 			end,
 		})
 	end,

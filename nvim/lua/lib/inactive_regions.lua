@@ -378,8 +378,7 @@ end
 ---@param bufnr integer
 ---@return integer|nil, integer|nil  render_top (0-indexed), render_bot (0-indexed)
 function H.get_viewport_range(bufnr)
-	local crisp = require("core.crisp")
-	if not crisp.isBigFile(bufnr) then
+	if vim.bo[bufnr].filetype ~= "bigfile" then
 		return nil, nil
 	end
 
