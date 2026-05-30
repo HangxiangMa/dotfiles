@@ -42,11 +42,6 @@ return {
 			on_attach = function(bufnr)
 				if crisp.isBigFile(bufnr) then
 					vim.b[bufnr].gitsigns_current_line_blame = false
-					vim.schedule(function()
-						if vim.api.nvim_buf_is_valid(bufnr) then
-							require("gitsigns").toggle_current_line_blame(false)
-						end
-					end)
 				end
 			end,
 		})
