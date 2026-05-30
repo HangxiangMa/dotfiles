@@ -6,7 +6,6 @@ return {
 		tag = "v3.8.7",
 		main = "ibl",
 		config = function()
-			local crisp = require("core.crisp")
 			local hooks = require("ibl.hooks")
 			local highlight = {
 				"RainbowRed",
@@ -64,18 +63,6 @@ return {
 						"lazyterm",
 					},
 				},
-			})
-
-			vim.api.nvim_create_autocmd("BufWinEnter", {
-				group = vim.api.nvim_create_augroup("ibl_bigfile", { clear = true }),
-				callback = function(args)
-					if crisp.isBigFile(args.buf) then
-						require("ibl").setup_buffer(args.buf, {
-							indent = { char = "┊" },
-							scope = { enabled = false },
-						})
-					end
-				end,
 			})
 		end,
 	},

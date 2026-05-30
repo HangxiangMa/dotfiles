@@ -41,6 +41,9 @@ end
 
 function M.apply(bufnr)
 	bufnr = bufnr or 0
+	if vim.bo[bufnr].filetype == "bigfile" then
+		return
+	end
 	local ft = vim.bo[bufnr].filetype
 
 	syn_in_buf(bufnr, [[syn keyword cTodo contained BUG NOTE]])
