@@ -59,12 +59,7 @@ return {
 
 		local Terminal = require("toggleterm.terminal").Terminal
 
-		-- lazygit
-		local lazygit = Terminal:new({ cmd = "lazygit", hidden = true })
-		function _LAZYGIT_TOGGLE()
-			lazygit:toggle()
-		end
-		vim.api.nvim_set_keymap("n", "<leader>Tg", "<cmd>lua _LAZYGIT_TOGGLE()<CR>", { noremap = true, silent = true })
+		-- lazygit moved to Snacks.lazygit (<leader>gg); see plugin/ui/snacks.lua.
 
 		-- ncdu
 		local ncdu = Terminal:new({ cmd = "ncdu", hidden = true })

@@ -128,7 +128,7 @@ nvim/
 │       ├── editor/         Text-editing behaviour: motions (flash, spider),
 │       │                   pairs, comments, folds, todo/whitespace, doge, etc.
 │       ├── finder/         Pickers and file/buffer browsers: fzf-lua,
-│       │                   yazi, nvim-tree, arena.
+│       │                   nvim-tree, arena.
 │       ├── lsp/            LSP core (mason, lspconfig, cmp, lint, format,
 │       │                   signature, inlay hints) plus per-server configs
 │       │                   under `lsp/server/`.

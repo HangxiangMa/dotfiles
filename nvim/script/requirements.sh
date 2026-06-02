@@ -30,7 +30,6 @@ DEFAULT_LUA_LS_VERSION="3.18.2"
 DEFAULT_NODE_LTS_VERSION="24.15.0"
 DEFAULT_NVIM_VERSION="0.12.2"
 DEFAULT_TREE_SITTER_VERSION="0.26.8"
-DEFAULT_YAZI_VERSION="26.5.6"
 
 # migrate: where to copy the nvim config to, and (optionally) where to
 # anchor XDG_* dirs. Both are filled from CLI flags by process_arguments().
@@ -66,7 +65,6 @@ SYNC_PACKAGES=(
 	"DEFAULT_NODE_LTS_VERSION|node-lts|https://nodejs.org/dist/v%V/node-v%V-linux-x64.tar.xz|https://nodejs.org/dist/v%V/node-v%V-linux-arm64.tar.xz"
 	"DEFAULT_NVIM_VERSION|gh:neovim/neovim|https://github.com/neovim/neovim/releases/download/v%V/nvim-linux-x86_64.tar.gz|https://github.com/neovim/neovim/releases/download/v%V/nvim-linux-arm64.tar.gz"
 	"DEFAULT_TREE_SITTER_VERSION|gh:tree-sitter/tree-sitter|https://github.com/tree-sitter/tree-sitter/releases/download/v%V/tree-sitter-linux-x64.gz|https://github.com/tree-sitter/tree-sitter/releases/download/v%V/tree-sitter-linux-arm64.gz"
-	"DEFAULT_YAZI_VERSION|gh:sxyazi/yazi|https://github.com/sxyazi/yazi/releases/tag/v%V|https://github.com/sxyazi/yazi/releases/tag/v%V"
 )
 
 show_help() {
@@ -127,7 +125,6 @@ show_components() {
 	echo -e "    9) neovim"
 	echo -e "   10) nvim-config"
 	echo -e "   11) python3-venv"
-	echo -e "   12) yazi"
 }
 
 # Ask the user whether to escalate via sudo for the described action.
@@ -804,74 +801,6 @@ install_bat() {
 	install_sharkdp_release "bat" "bat" "sharkdp/bat" "$DEFAULT_BAT_VERSION"
 }
 
-install_yazi() {
-	local LATEST_VERSION=$(get_latest_github_release "sxyazi/yazi" "$DEFAULT_YAZI_VERSION")
-
-	# First check if command exists
-	if ! command -v yazi &>/dev/null; then
-		echo -e "${MAGENTA}[yazi]: Installing 'yazi' TUI file manager${RESET}"
-	else
-		# Only check version if command exists
-		local CURRENT_VERSION=$(get_current_version "yazi" "--version")
-		if [ -n "$CURRENT_VERSION" ]; then
-			version_compare "$CURRENT_VERSION" "$LATEST_VERSION"
-			local cmp_result=$?
-
-			if [ $cmp_result -eq 0 ]; then
-				echo -e "${BLUE}[yazi]: Yazi is already up-to-date (v$CURRENT_VERSION)${RESET}"
-				return 0
-			elif [ $cmp_result -eq 1 ]; then
-				echo -e "${BLUE}[yazi]: Yazi is newer than latest release (v$CURRENT_VERSION > v$LATEST_VERSION)${RESET}"
-				return 0
-			else
-				echo -e "${YELLOW}[yazi]: Yazi is outdated (v$CURRENT_VERSION < v$LATEST_VERSION), updating...${RESET}"
-			fi
-		fi
-	fi
-
-	local cargo_base="${MIGRATE_XDG_BASE:-$HOME}"
-	export CARGO_HOME="${CARGO_HOME:-$cargo_base/.cargo}"
-	export RUSTUP_HOME="${RUSTUP_HOME:-$cargo_base/.rustup}"
-	if ! command -v rustup &>/dev/null; then
-		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-		echo '. "'"$CARGO_HOME"'/env"' >>"$HOME/.bashrc"
-	fi
-	source "$CARGO_HOME/env"
-	rustup update
-	# Upstream packaging: since yazi 26.x, `yazi-fm`/`yazi-cli` on crates.io
-	# refuse to be built via `cargo install` directly (they require the
-	# yazi-build meta-crate's build.rs cascade, which only fires reliably under
-	# specific manifest paths). The stable documented path is `git clone` +
-	# `cargo build --release --locked`, producing plain binaries we copy into
-	# the prefix ourselves.
-	if ! create_installation_path "${DEFAULT_PATH}"; then
-		return 1
-	fi
-	local yazi_src
-	yazi_src=$(mktemp -d)
-	git clone --depth 1 https://github.com/sxyazi/yazi.git "$yazi_src/yazi" || {
-		echo -e "${RED}[ERROR] Failed to clone yazi repo${RESET}"
-		rm -rf "$yazi_src"
-		return 1
-	}
-	(cd "$yazi_src/yazi" && cargo build --release --locked) || {
-		echo -e "${RED}[ERROR] yazi build failed${RESET}"
-		rm -rf "$yazi_src"
-		return 1
-	}
-	if ! install_to_prefix "${DEFAULT_PATH}/bin" "cp-r" \
-		"$yazi_src/yazi/target/release/yazi" \
-		"$yazi_src/yazi/target/release/ya"; then
-		rm -rf "$yazi_src"
-		return 1
-	fi
-	rm -rf "$yazi_src"
-
-	export PATH="${DEFAULT_PATH}/bin:$PATH"
-	append_path_to_rc "${DEFAULT_PATH}/bin"
-	verify_installation "Yazi" "yazi"
-}
-
 install_bat_extra() {
 	if ! create_installation_path "${DEFAULT_PATH}"; then
 		return 1
@@ -1310,9 +1239,8 @@ select_component() {
 	9) install_nvim ;;
 	10) install_nvim_config ;;
 	11) install_python3_venv ;;
-	12) install_yazi ;;
 	*)
-		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 12.${RESET}"
+		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 11.${RESET}"
 		exit 1
 		;;
 	esac
@@ -1769,8 +1697,7 @@ cmd_setup() {
 				lazygit     "lazygit: terminal git UI"                  ON  \
 				lua_ls      "lua-language-server for Neovim config"    ON  \
 				nvim        "Neovim binary (latest release)"           ON  \
-				python      "python3-venv + debugpy for DAP"           ON  \
-				yazi        "yazi file manager (cargo build, slow)"    OFF)"
+				python      "python3-venv + debugpy for DAP"           ON)"
 			while IFS= read -r tag; do
 				case "$tag" in
 					bat)        track_install "bat"                install_bat ;;
@@ -1784,7 +1711,6 @@ cmd_setup() {
 					nvim)       track_install "nvim"               install_nvim ;;
 					python)     track_install "python3-venv"       install_python3_venv \
 					            && track_install "debug-tools"     install_debug_tools ;;
-					yazi)       track_install "yazi"               install_yazi ;;
 				esac
 			done <<<"$picked"
 			cmd_migrate || return 1
@@ -1859,7 +1785,6 @@ install_all() {
 	track_install "lua_ls"             install_lua_ls
 	track_install "nvim"               install_nvim
 	track_install "python3-venv"       install_python3_venv
-	track_install "yazi"               install_yazi
 	install_summary_print
 }
 
@@ -2076,7 +2001,7 @@ cmd_migrate() {
 		track_install "lua_ls"             install_lua_ls
 		track_install "nvim"               install_nvim
 		track_install "python3-venv"       install_python3_venv
-		# yazi / bat-extras / debug-tools are heavy; opt-in only.
+		# bat-extras / debug-tools are heavy; opt-in only.
 		install_summary_print
 	fi
 
