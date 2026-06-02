@@ -140,8 +140,8 @@ return {
 			{ "g*", desc = "Search Symbol(↑)" },
 			{ "g#", desc = "Search Symbol(↓)" },
 
-			-- yazi
-			{ "<leader>-", desc = "Yazi" },
+			-- nvim-tree: reveal current file in the tree (toggle tree on <C-B>)
+			{ "<leader>-", "<cmd>NvimTreeFindFile<CR>", desc = "Reveal File in Tree" },
 
 			-- Buffer/Tab on lowercase <leader>t. Terminals are on
 			-- uppercase <leader>T to keep this prefix free for the
@@ -214,12 +214,14 @@ return {
 			{ "<leader>Tf", desc = "Terminal Float" },
 			{ "<leader>Th", desc = "Terminal Horizontal" },
 			{ "<leader>Tv", desc = "Terminal Vertical" },
-			{ "<leader>Tg", desc = "Lazy Git" },
 			{ "<leader>Tn", desc = "ncdu" },
 			{ "<leader>Tt", desc = "htop" },
 
 			-- Git
 			{ "<leader>g", group = "Git" },
+			{ "<leader>gg", desc = "Lazygit" },
+			{ "<leader>gG", desc = "Lazygit File History" },
+			{ "<leader>gO", desc = "Git Browse (open in browser)", mode = { "n", "v" } },
 			{ "<leader>gf", "<cmd>DiffviewFileHistory<CR>", desc = "File History" },
 			{ "<leader>gD", "<cmd>DiffviewOpen<CR>", desc = "Diff Project" },
 			{ "<leader>gn", "<cmd>lua require 'gitsigns'.next_hunk()<cr>", desc = "Next Hunk" },
@@ -271,6 +273,25 @@ return {
 
 			-- Neotest is currently disabled; keys are registered by the plugin's own
 			-- spec when re-enabled. No declarations here.
+
+			-- Toggle (Snacks.toggle): UI/option switches. Keymaps themselves are
+			-- created by Snacks.toggle:map() in snacks.lua; these are descriptions.
+			{ "<leader>u", group = "Toggle" },
+			{ "<leader>us", desc = "Toggle Spelling" },
+			{ "<leader>uw", desc = "Toggle Wrap" },
+			{ "<leader>ul", desc = "Toggle Line Number" },
+			{ "<leader>uL", desc = "Toggle Relative Number" },
+			{ "<leader>uc", desc = "Toggle Conceal" },
+			{ "<leader>ud", desc = "Toggle Diagnostics" },
+			{ "<leader>uT", desc = "Toggle Treesitter Highlight" },
+			{ "<leader>ub", desc = "Toggle Dark Background" },
+			{ "<leader>uD", desc = "Toggle Dim" },
+
+			-- Snacks scope textobjects / jumps
+			{ "ii", desc = "Inner Scope", mode = { "x", "o" } },
+			{ "ai", desc = "Around Scope", mode = { "x", "o" } },
+			{ "[i", desc = "Jump to Scope Top", mode = { "n", "x", "o" } },
+			{ "]i", desc = "Jump to Scope Bottom", mode = { "n", "x", "o" } },
 
 			-- marker-groups: <leader>M is the user-set prefix in marker-groups.lua.
 			{ "<leader>M", group = "Marker Groups" },

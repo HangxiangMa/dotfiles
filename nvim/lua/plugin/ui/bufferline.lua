@@ -34,7 +34,11 @@ return {
 		map("<leader>tn", ":BufferLineCycleNext<CR>")
 		map("<leader>tp", ":BufferLineCyclePrev<CR>")
 		map("<leader>tP", ":BufferLinePick<CR>")
-		map("<leader>td", ":bdelete %<CR>")
+		-- Snacks.bufdelete: drop the buffer but keep the window layout intact
+		-- (plain :bdelete closes the window when it's the only buffer there).
+		vim.keymap.set("n", "<leader>td", function()
+			require("snacks").bufdelete()
+		end, { noremap = true, silent = true, desc = "Close Buffer" })
 		map("<leader>tcp", ":BufferLinePickClose<CR>")
 		map("<leader>tco", ":BufferLineCloseLeft<CR>:BufferLineCloseRight<CR>")
 		map("<leader>tcl", ":BufferLineCloseLeft<CR>")
