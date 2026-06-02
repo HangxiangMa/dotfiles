@@ -21,7 +21,7 @@ done
 
 echo "=== Verifying installations ==="
 export PATH="$PREFIX/bin:$PREFIX/nvim-linux-x86_64/bin:$PREFIX/nvim-linux-arm64/bin:$PATH"
-for cmd in nvim lazygit yazi batgrep clangd lua-language-server fd bat; do
+for cmd in nvim lazygit batgrep clangd lua-language-server fd bat; do
 	if command -v "$cmd" >/dev/null 2>&1; then
 		echo "[OK]   $cmd -> $(command -v "$cmd")"
 	else
