@@ -1,6 +1,7 @@
 return {
 	"danilamihailov/beacon.nvim",
 	opts = {
+		speed = 5,
 		enabled = function()
 			return vim.g.beacon_enabled ~= false
 		end,
