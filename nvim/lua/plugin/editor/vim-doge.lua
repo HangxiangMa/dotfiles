@@ -3,8 +3,12 @@ return {
 	keys = {
 		{ "gDt", desc = "Doge Generate (default trigger)" },
 		{ "gDc", "<Plug>(doge-generate)", desc = "Doge Generate" },
-		{ "<TAB>", "<Plug>(doge-comment-jump-forward)", mode = { "n", "i", "x" } },
-		{ "<S-TAB>", "<Plug>(doge-comment-jump-backward)", mode = { "n", "i", "x" } },
+		-- Insert-mode <Tab> belongs to blink.cmp (completion / snippet jump).
+		-- Declaring it here makes lazy.nvim install an insert-mode <Tab>
+		-- lazy-load stub that shadows blink and freezes insert mode, so keep
+		-- doge's placeholder jumps on normal/visual only.
+		{ "<TAB>", "<Plug>(doge-comment-jump-forward)", mode = { "n", "x" } },
+		{ "<S-TAB>", "<Plug>(doge-comment-jump-backward)", mode = { "n", "x" } },
 	},
 	cmd = { "DogeGenerate", "DogeCreateDocStandard" },
 	build = function()
