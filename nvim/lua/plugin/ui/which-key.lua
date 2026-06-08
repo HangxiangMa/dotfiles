@@ -59,7 +59,7 @@ return {
 
 			-- common
 			{ "<leader><leader>", group = "Common" },
-			{ "<leader><leader>i", desc = "IconPicker Normal" },
+			{ "<leader><leader>n", desc = "IconPicker Normal" },
 			{ "<leader><leader>y", desc = "IconPicker Yank" },
 			{ "<leader><leader>v", desc = "Toggle Visual Whitespace" },
 			{ "<leader><leader>s", desc = "Trim Trailing Whitespace" },
