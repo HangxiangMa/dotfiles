@@ -191,16 +191,11 @@ return {
 					local ok, supported = pcall(client.supports_method, client, "textDocument/codeLens")
 					local ft = vim.bo[ev.buf].filetype
 					if ok and supported and ft ~= "c" and ft ~= "cpp" then
-						local cl_group = vim.api.nvim_create_augroup("user_lsp_codelens_" .. ev.buf, { clear = false })
-						vim.api.nvim_create_autocmd({ "BufEnter", "InsertLeave" }, {
-							group = cl_group,
-							buffer = ev.buf,
-							callback = function()
-								if vim.api.nvim_buf_is_loaded(ev.buf) and vim.api.nvim_buf_is_valid(ev.buf) then
-									vim.lsp.codelens.refresh({ bufnr = ev.buf })
-								end
-							end,
-						})
+						-- codelens.enable() replaces the deprecated codelens.refresh()
+						-- (removed in 0.13). It buf_attaches and auto-refreshes on
+						-- text changes, so the old BufEnter/InsertLeave autocmd that
+						-- called refresh() by hand is no longer needed.
+						vim.lsp.codelens.enable(true, { bufnr = ev.buf })
 					end
 				end,
 			})
