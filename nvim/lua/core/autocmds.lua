@@ -55,6 +55,42 @@ vim.api.nvim_create_autocmd("FileType", {
 	end,
 })
 
+-- Big files: cut the cmdline -> heavy-redraw paths.
+--
+-- `inccommand` (live :s preview) and `incsearch` are GLOBAL options, so they
+-- can't be set per-buffer like synmaxcol. We flip them off on entering a
+-- `bigfile` buffer and restore the user's values on leaving, so the command
+-- line stays responsive in huge files without changing behaviour elsewhere.
+local bigfile_redraw = vim.api.nvim_create_augroup("bigfile_redraw", { clear = true })
+local saved_inc = {}
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter" }, {
+	group = bigfile_redraw,
+	callback = function(args)
+		if vim.bo[args.buf].filetype ~= "bigfile" then
+			return
+		end
+		if saved_inc.inccommand == nil then
+			saved_inc.inccommand = vim.o.inccommand
+			saved_inc.incsearch = vim.o.incsearch
+		end
+		vim.o.inccommand = ""
+		vim.o.incsearch = false
+	end,
+})
+vim.api.nvim_create_autocmd("BufLeave", {
+	group = bigfile_redraw,
+	callback = function(args)
+		if vim.bo[args.buf].filetype ~= "bigfile" then
+			return
+		end
+		if saved_inc.inccommand ~= nil then
+			vim.o.inccommand = saved_inc.inccommand
+			vim.o.incsearch = saved_inc.incsearch
+			saved_inc = {}
+		end
+	end,
+})
+
 -- :checkhealth output uses concealed markdown markup for headings, status
 -- icons, etc. With our default conceallevel=2 those characters disappear
 -- from the buffer but stay on screen, so `y` copies a hollowed-out version
