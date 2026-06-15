@@ -36,6 +36,10 @@ return {
 				Snacks.util.wo(0, { foldmethod = "manual", statuscolumn = "", conceallevel = 0 })
 				vim.b.completion = false
 				vim.b.minianimate_disable = true
+				-- snacks re-enables regex syntax below (vim.bo.syntax = ctx.ft);
+				-- cap it to the viewport width so long lines don't run the
+				-- per-column regex on every cmdline-driven redraw.
+				vim.bo[ctx.buf].synmaxcol = 256
 				vim.schedule(function()
 					if vim.api.nvim_buf_is_valid(ctx.buf) then
 						vim.bo[ctx.buf].syntax = ctx.ft
