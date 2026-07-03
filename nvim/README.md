@@ -1,6 +1,9 @@
-# Configure Neovim
+# Neovim Configuration
 
-You can follow the steps in this `README` file or read the blog [\[Start from scratch: Neovim\]](https://hangx-ma.github.io/2023/06/23/neovim-config.html) to configure Neovim.
+A modular Neovim (>= 0.12) setup managed by [lazy.nvim](https://github.com/folke/lazy.nvim):
+LSP, treesitter, fuzzy finding, git, debugging and a curated UI, with a single
+script that installs every dependency and deploys the config. For the story behind
+it, see the blog [\[Start from scratch: Neovim\]](https://hangx-ma.github.io/2023/06/23/neovim-config.html).
 
 <div class="dino" align="center">
   <table>
@@ -15,95 +18,95 @@ You can follow the steps in this `README` file or read the blog [\[Start from sc
   </table>
 </div>
 
+## Quick start
+
+Everything is driven by `script/requirements.sh`. Clone the repo, then either run
+the guided TUI or pick a one-shot command.
+
+```bash
+git clone https://github.com/HangX-Ma/dotfiles.git
+cd dotfiles/nvim
+./script/requirements.sh          # guided TUI (recommended)
+```
+
+The TUI walks you through a **profile** (quick / full / custom / config-only), an
+**XDG layout** (default `$HOME` / `$WORKSPACE` / custom), a tool **prefix**, and a
+deploy method (copy or symlink). Pass `-y` / `--prefix` / `--xdg-base` on the
+command line to skip the matching prompt. It uses `whiptail`/`dialog` when
+available and falls back to plain numbered prompts otherwise.
+
+### One-shot commands
+
+```bash
+# Fresh machine: install every dependency AND deploy the config in one step.
+# --xdg-base anchors XDG_CONFIG/DATA/STATE/CACHE under a chosen dir (handy when
+# $HOME has a quota) and persists them to your shell rc.
+./script/requirements.sh migrate --with-deps --xdg-base="$WORKSPACE" -y
+
+# Deploy the config only (offline, no dependency installs). Safe to re-run:
+# the previous ~/.config/nvim is moved to ~/.config/nvim.bak-<timestamp> first.
+./script/requirements.sh migrate
+
+# Symlink ~/.config/nvim to this repo so edits take effect immediately.
+./script/requirements.sh migrate --symlink
+```
+
+## Script reference
+
+Run `./script/requirements.sh help` for the full list. The operations:
+
+| Operation   | What it does |
+|-------------|--------------|
+| `setup`     | Guided TUI: pick a profile + XDG layout, then install (default when no operation is given). |
+| `all`       | Install every packaged tool, then deploy the config. |
+| `basic`     | Install Neovim + the apt-level essentials, then deploy the config. |
+| `component` | Menu to install just one component (bat, clang-tools, fd, lazygit, lua_ls, …). |
+| `migrate`   | Deploy this repo's config to `$XDG_CONFIG_HOME/nvim` (offline; never clones a remote). |
+| `sync`      | Refresh the pinned `DEFAULT_*_VERSION` values in the script from upstream. |
+| `help`      | Show usage. |
+
+Common options (see `help` for the rest):
+
+| Option            | Applies to | Meaning |
+|-------------------|------------|---------|
+| `--prefix=PATH`   | installs   | Tool install path (default `$HOME/.local`). |
+| `--arch=ARCH`     | installs   | `x86` (default) or `ARM64`. |
+| `--with-deps`     | `migrate`  | Also install Neovim + tools before deploying the config. |
+| `--xdg-base=DIR`  | `migrate`  | Anchor the XDG dirs under `DIR` and persist them to your shell rc. |
+| `--symlink`       | `migrate`  | Symlink the config to this repo instead of copying. |
+| `-y`              | all        | Auto-answer "yes" to sudo prompts. |
+
+**Downloads & caching.** Release tarballs are cached under
+`$XDG_CACHE_HOME/nvim-installer/downloads/` (default `~/.cache/...`), so a second
+run with the same versions never hits the network. `aria2c` is used for parallel
+downloads when present (installed by the apt essentials); `curl`/`wget` are the
+fallback. On a slow link you can sideload a file by dropping it into the cache
+directory — the script prints the exact target path on failure. Set
+`GITHUB_TOKEN`/`GH_TOKEN` to raise the GitHub API rate limit.
+
 > [!NOTE]
-> **_requirements.sh_** provides a convenient installation method. Run `./script/requirements.sh help` to see every flag.
->
-> ```txt
-> Usage:  [all|basic|component|migrate|sync|help]
->     all       - Install all packages
->     basic     - Install Neovim and the apt-level essentials
->     component - Install just the component you pick
->     migrate   - Deploy this repo's nvim config to $XDG_CONFIG_HOME/nvim
->                 (offline; never clones a remote dotfiles repo)
->     sync      - Refresh DEFAULT_*_VERSION pins from upstream
->     help      - Show this guidance
-> ```
->
-> ### One-shot setup on a fresh machine
->
-> ```bash
-> # Clone, then deploy config + install every dependency in a single step.
-> # Use --xdg-base when $HOME has a quota; the script will write
-> # XDG_CONFIG_HOME/XDG_DATA_HOME/XDG_STATE_HOME/XDG_CACHE_HOME to your
-> # shell rc so the location persists across sessions.
-> git clone https://github.com/HangX-Ma/dotfiles.git
-> cd dotfiles/nvim
-> ./script/requirements.sh migrate --with-deps --xdg-base="$WORKSPACE" -y
-> ```
->
-> `migrate` alone (without `--with-deps`) deploys just the config and is
-> safe to re-run — the previous `~/.config/nvim` is moved aside to
-> `~/.config/nvim.bak-<timestamp>` first.
->
-> ### Interactive TUI
->
-> ```bash
-> ./script/requirements.sh setup       # or just `./script/requirements.sh`
-> ```
->
-> Opens a guided menu: pick a profile (quick / full / custom / config-only),
-> XDG layout (default / `$WORKSPACE` / custom), and prefix. Uses
-> `whiptail`/`dialog` if available; otherwise falls back to plain numbered
-> prompts so it works on any POSIX machine.
->
-> ### Download cache & sideloading
->
-> All release tarballs are cached at
-> `${XDG_CACHE_HOME:-$HOME/.cache}/nvim-installer/downloads/`. A second run
-> with the same versions never touches the network.
->
-> If a download is too slow (e.g. LLVM is ~800 MB), copy the file from a
-> faster machine and drop it into the cache directory. The next run will
-> reuse it. The script will print the exact filename and target path on
-> failure.
->
-> Parallel downloads via `aria2c` are used automatically when available
-> (`requirements.sh basic` installs it as part of the apt essentials).
+> After deploying, launch `nvim` once and **lazy.nvim** will install every plugin
+> automatically. If something is missing, run `:checkhealth` inside Neovim and
+> follow the health report.
 
 > [!WARNING]
-> I have tested all modules in the script but it possibly has some tiny mistakes that I haven't found. Please inform me if you figure out issues.
+> Every module has been tested, but small issues may remain — please report
+> anything you hit.
 
-## System Support(Recommended)
+## Clipboard support (recommended)
 
-- clipboard
+```bash
+cp script/clipboard-provider $HOME/clipboard-provider
+echo "export PATH=$HOME/clipboard-provider:$PATH" >> ~/.bashrc
+# WSL only
+sudo apt-get install wl-clipboard
+# test it
+echo "test" | clipboard-provider copy
+```
 
-  ```bash
-  cp script/clipboard-provider $HOME/clipboard-provider
-  echo "export PATH=$HOME/clipboard-provider:$PATH" >> ~/.bashrc
-  # support clipboard on WSL
-  sudo apt-get install wl-clipboard
-  # test clipboard-provider
-  echo "test" | clipboard-provider copy
-  ```
-
-  > You can select your own clipboard support by looking at `:help clipboard-tool` in neovim.
-  > Refer to this [page](https://zhuanlan.zhihu.com/p/419472307) to acquire more details.
-
-## Update configuration files
-
-- Move `nvim` folder into appropriate place or use the script to update configuration.
-
-  ```bash
-  git clone https://github.com/HangX-Ma/dotfiles.git
-  mkdir ~/.config
-  cp -r dotfiles/nvim ~/.config
-  ```
-
-- When you run `nvim`, **Lazy** package manager will install all neovim extensions automatically. You may encounter with some issues about a lack of dependencies. Just run the following command in neovim and follow the instructions provided by the **health report**.
-
-  ```vim
-  :checkhealth
-  ```
+> The `clipboard` component of the script installs this shim for you. Pick your
+> own provider via `:help clipboard-tool`; see this
+> [page](https://zhuanlan.zhihu.com/p/419472307) for details.
 
 ## Layout
 
