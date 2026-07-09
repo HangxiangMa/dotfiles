@@ -20,6 +20,10 @@ A small, opinionated tmux config plus a one-shot installer.
   `renumber-windows on`, `prefix + r` reloads the conf, `prefix + |` /
   `prefix + -` split with current cwd, status line shows hostname + session
   name (handy for SSH).
+- **Claude status badge** — each window entry ends with a `#{@claude_status}`
+  slot. A Claude Code hook that writes the `@claude_status` window option
+  (e.g. working / needs-input / done) surfaces a per-window badge there; with
+  no such hook the slot expands to nothing, so it's a harmless no-op.
 
 > [!NOTE]
 > `allow-passthrough on` (used by yazi image preview) is gated behind a
