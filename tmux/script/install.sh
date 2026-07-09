@@ -4,12 +4,15 @@
 #
 #   ./script/install.sh             # interactive: confirm before each step
 #   ./script/install.sh -y          # non-interactive: assume yes
+#   ./script/install.sh --symlink   # symlink ~/.tmux.conf -> repo copy
 #   ./script/install.sh --dry-run   # print what would happen, change nothing
 #   ./script/install.sh help        # show usage
 #
 # Steps performed (each is idempotent):
-#   1. Deploy tmux.conf  -> ~/.tmux.conf  (existing file is backed up to
-#      ~/.tmux.conf.bak-<timestamp> before overwriting).
+#   1. Deploy tmux.conf  -> ~/.tmux.conf. By default the repo copy is copied in
+#      place; with --symlink it is symlinked instead (so edits to the repo tree
+#      reflect immediately). Any existing regular file is backed up to
+#      ~/.tmux.conf.bak-<timestamp> before it is replaced.
 #   2. Install TPM       -> ~/.tmux/plugins/tpm  (cloned via git if missing).
 #   3. Install plugins   -> runs ~/.tmux/plugins/tpm/bin/install_plugins
 #      so the declared plugins land before first attach.
@@ -42,11 +45,12 @@ TPM_REPO="https://github.com/tmux-plugins/tpm"
 
 ASSUME_YES=0
 DRY_RUN=0
+SYMLINK=0
 
 # ---------- arg parsing ----------
 show_help() {
     cat <<EOF
-Usage: $0 [-y] [--dry-run] [help]
+Usage: $0 [-y] [-s|--symlink] [--dry-run] [help]
 
 Deploy this repo's tmux.conf to \$HOME/.tmux.conf, install TPM, then
 fetch the plugins it declares (tmux-sensible, tmux-yank,
@@ -54,6 +58,8 @@ vim-tmux-navigator).
 
 Options:
     -y, --yes      Assume yes to every prompt (non-interactive).
+    -s, --symlink  Symlink ~/.tmux.conf to the in-repo tmux.conf instead of
+                   copying it, so edits to the repo tree take effect on reload.
     --dry-run      Print the actions that would be taken; change nothing.
     help, -h       Show this guidance.
 EOF
@@ -62,6 +68,7 @@ EOF
 for arg in "$@"; do
     case "$arg" in
         -y|--yes) ASSUME_YES=1 ;;
+        -s|--symlink) SYMLINK=1 ;;
         --dry-run) DRY_RUN=1 ;;
         help|-h|--help) show_help; exit 0 ;;
         *) err "unknown argument: $arg"; show_help; exit 2 ;;
@@ -102,24 +109,56 @@ if ! command -v tmux >/dev/null 2>&1; then
 fi
 
 # ---------- step 1: deploy tmux.conf ----------
-step "Deploy tmux.conf -> $DST_CONF"
-if [ -e "$DST_CONF" ] || [ -L "$DST_CONF" ]; then
-    if cmp -s "$SRC_CONF" "$DST_CONF" 2>/dev/null; then
-        ok "$DST_CONF already matches repo copy — nothing to do."
+if [ "$SYMLINK" -eq 1 ]; then
+    step "Symlink tmux.conf -> $DST_CONF -> $SRC_CONF"
+    if [ -L "$DST_CONF" ] && [ "$(readlink "$DST_CONF")" = "$SRC_CONF" ]; then
+        ok "$DST_CONF already symlinks to the repo copy — nothing to do."
     else
-        BACKUP="$DST_CONF.bak-$(date +%Y%m%d-%H%M%S)"
-        warn "$DST_CONF exists and differs from repo copy."
-        if confirm "Back it up to $(basename "$BACKUP") and overwrite?"; then
-            run mv "$DST_CONF" "$BACKUP"
-            run cp "$SRC_CONF" "$DST_CONF"
-            ok "deployed (previous file saved to $BACKUP)"
-        else
-            warn "skipped tmux.conf deployment"
+        do_link=1
+        # A regular file holds real data — back it up first. An existing symlink
+        # (to some other target) has no data of its own; just replace it.
+        if [ -e "$DST_CONF" ] && [ ! -L "$DST_CONF" ]; then
+            BACKUP="$DST_CONF.bak-$(date +%Y%m%d-%H%M%S)"
+            warn "$DST_CONF is a regular file."
+            if confirm "Back it up to $(basename "$BACKUP") and symlink to the repo?"; then
+                run mv "$DST_CONF" "$BACKUP"
+            else
+                warn "skipped tmux.conf deployment"
+                do_link=0
+            fi
+        elif [ -L "$DST_CONF" ]; then
+            warn "replacing existing symlink $DST_CONF -> $(readlink "$DST_CONF")"
+            run rm -f "$DST_CONF"
+        fi
+        if [ "$do_link" -eq 1 ]; then
+            run ln -sfn "$SRC_CONF" "$DST_CONF"
+            ok "symlinked $DST_CONF -> $SRC_CONF"
         fi
     fi
 else
-    run cp "$SRC_CONF" "$DST_CONF"
-    ok "deployed"
+    step "Deploy tmux.conf -> $DST_CONF"
+    if [ -e "$DST_CONF" ] || [ -L "$DST_CONF" ]; then
+        if [ ! -L "$DST_CONF" ] && cmp -s "$SRC_CONF" "$DST_CONF" 2>/dev/null; then
+            ok "$DST_CONF already matches repo copy — nothing to do."
+        else
+            BACKUP="$DST_CONF.bak-$(date +%Y%m%d-%H%M%S)"
+            if [ -L "$DST_CONF" ]; then
+                warn "$DST_CONF is a symlink -> $(readlink "$DST_CONF"); replacing with a copy."
+            else
+                warn "$DST_CONF exists and differs from repo copy."
+            fi
+            if confirm "Back it up to $(basename "$BACKUP") and overwrite?"; then
+                run mv "$DST_CONF" "$BACKUP"
+                run cp "$SRC_CONF" "$DST_CONF"
+                ok "deployed (previous file saved to $BACKUP)"
+            else
+                warn "skipped tmux.conf deployment"
+            fi
+        fi
+    else
+        run cp "$SRC_CONF" "$DST_CONF"
+        ok "deployed"
+    fi
 fi
 
 # ---------- step 2: install TPM ----------
