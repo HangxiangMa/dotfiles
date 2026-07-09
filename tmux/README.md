@@ -32,13 +32,17 @@ A small, opinionated tmux config plus a one-shot installer.
 cd dotfiles/tmux
 ./script/install.sh           # interactive — confirms before each step
 ./script/install.sh -y        # non-interactive
+./script/install.sh --symlink # symlink ~/.tmux.conf -> repo copy (live edits)
 ./script/install.sh --dry-run # show planned actions, change nothing
 ```
 
 The installer is idempotent. It will:
 
-1. Copy `tmux.conf` to `~/.tmux.conf` (existing file is moved aside to
-   `~/.tmux.conf.bak-<timestamp>` first).
+1. Deploy `tmux.conf` to `~/.tmux.conf`. By default it copies the file;
+   with `--symlink` (`-s`) it symlinks to the in-repo copy instead, so edits
+   to the repo tree take effect on the next reload. Either way, an existing
+   *regular* file is moved aside to `~/.tmux.conf.bak-<timestamp>` first (a
+   stale symlink is just replaced — it has no data of its own).
 2. Clone TPM into `~/.tmux/plugins/tpm` if missing.
 3. Run TPM's `install_plugins` so yank / navigator land before you ever
    attach a session.
