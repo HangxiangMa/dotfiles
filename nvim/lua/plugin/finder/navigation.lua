@@ -36,7 +36,24 @@ return {
 					enable = true,
 					auto_open = true,
 				},
-				renderer = { group_empty = true },
+				renderer = {
+					group_empty = true,
+					-- Full default decorator list (nvim-tree drops the builtins
+					-- if you override `decorators`), with commit-lens appended
+					-- before "Cut" so files touched by the chosen commits get
+					-- an orange sign + name in the tree.
+					decorators = {
+						"Git",
+						"Open",
+						"Hidden",
+						"Modified",
+						"Bookmark",
+						"Diagnostics",
+						"Copied",
+						require("commit-lens.tree-decorator"),
+						"Cut",
+					},
+				},
 				filters = { dotfiles = true },
 			})
 
