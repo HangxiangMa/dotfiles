@@ -227,6 +227,38 @@ return {
 			{ "<leader>gn", "<cmd>lua require 'gitsigns'.next_hunk()<cr>", desc = "Next Hunk" },
 			{ "<leader>gp", "<cmd>lua require 'gitsigns'.prev_hunk()<cr>", desc = "Prev Hunk" },
 			{ "<leader>gl", "<cmd>lua require 'gitsigns'.blame_line()<cr>", desc = "Blame" },
+			-- Full blame float: shows the commit that last touched this line
+			-- *with its patch body* — i.e. hover the commit's change onto the
+			-- current line. Press again inside the float to enter that commit.
+			{
+				"<leader>gL",
+				"<cmd>lua require('gitsigns').blame_line({ full = true })<cr>",
+				desc = "Blame Line (commit + diff)",
+			},
+			-- Expand the hunk under the cursor inline (below the code, deletions
+			-- as virtual lines) instead of a separate diff buffer. Combined with
+			-- the "Diff Base" keys below, this annotates a chosen commit's changes
+			-- directly onto the working tree.
+			{
+				"<leader>gh",
+				"<cmd>lua require('gitsigns').preview_hunk_inline()<cr>",
+				desc = "Preview Hunk (inline)",
+			},
+			-- Diff Base: point gitsigns at an arbitrary rev so the sign column +
+			-- inline previews reflect changes since that commit. Set base to
+			-- `<sha>~1` to review what `<sha>` (and anything after it) touched, in
+			-- the context of the current code; reset back to the index when done.
+			{ "<leader>gv", group = "Diff Base" },
+			{
+				"<leader>gvv",
+				"<cmd>lua vim.ui.input({ prompt = 'Diff base (rev, e.g. <sha>~1): ' }, function(r) if r and r ~= '' then require('gitsigns').change_base(r, true) end end)<cr>",
+				desc = "Set base to rev…",
+			},
+			{
+				"<leader>gvr",
+				"<cmd>lua require('gitsigns').change_base(nil, true)<cr>",
+				desc = "Reset base to index",
+			},
 			{ "<leader>gB", "<cmd>Gitsigns toggle_current_line_blame<cr>", desc = "Toggle Line Blame" },
 			{ "<leader>gr", "<cmd>lua require 'gitsigns'.reset_hunk()<cr>", desc = "Reset Hunk" },
 			{ "<leader>gR", "<cmd>lua require 'gitsigns'.reset_buffer()<cr>", desc = "Reset Buffer" },
