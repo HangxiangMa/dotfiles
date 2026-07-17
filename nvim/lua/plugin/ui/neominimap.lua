@@ -13,6 +13,14 @@ return {
 		vim.g.neominimap = {
 			auto_enable = true,
 
+			-- commit-lens minimap integration: show lens-marked lines in
+			-- orange, alongside the built-in git handler. Safe-required so a
+			-- missing plugin never breaks minimap startup.
+			handlers = (function()
+				local ok, h = pcall(require, "commit-lens.minimap-handler")
+				return ok and { h } or {}
+			end)(),
+
 			exclude_filetypes = {
 				"help",
 				"bigfile", -- For Snacks.nvim

@@ -270,6 +270,14 @@ return {
 			{ "<leader>gc", "<cmd>FzfLua git_commits<cr>", desc = "Checkout commit" },
 			{ "<leader>gd", "<cmd>Gitsigns diffthis HEAD<cr>", desc = "Diffthis" },
 			{ "<leader>gx", group = "Conflict" },
+			-- Commit Lens: blame-based layer that marks lines of the *current*
+			-- code belonging to chosen commit(s). Complements gitsigns/diffview.
+			{ "<leader>gm", group = "Commit Lens" },
+			{ "<leader>gmm", "<cmd>CommitLens<cr>", desc = "Highlight a commit's changes" },
+			{ "<leader>gmc", "<cmd>CommitLensClear<cr>", desc = "Clear highlight" },
+			{ "<leader>gmf", "<cmd>CommitLensFiles<cr>", desc = "List changed files" },
+			{ "]h", desc = "Next changed block" },
+			{ "[h", desc = "Prev changed block" },
 
 			-- diagnostics
 			{ "<leader>a", group = "Diagnostics" },
