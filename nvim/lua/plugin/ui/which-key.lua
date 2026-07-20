@@ -326,6 +326,9 @@ return {
 			{ "<leader>uT", desc = "Toggle Treesitter Highlight" },
 			{ "<leader>ub", desc = "Toggle Dark Background" },
 			{ "<leader>uD", desc = "Toggle Dim" },
+			-- Transparency toggle. The real keymap lives in theme/transparent.lua
+			-- (carries its own desc); this entry keeps it visible in the group.
+			{ "<leader>ut", desc = "Toggle Transparency" },
 
 			-- Snacks scope textobjects / jumps
 			{ "ii", desc = "Inner Scope", mode = { "x", "o" } },
