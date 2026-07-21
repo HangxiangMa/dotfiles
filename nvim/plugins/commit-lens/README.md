@@ -142,6 +142,15 @@ Kept here so future-me doesn't re-discover them the hard way:
   file size (400ms small → up to 1600ms for ~20k-line files). If the recomputed
   hits are identical, the whole repaint is **short-circuited** (no extmark
   reset, no minimap refresh) — editing an unrelated region costs nothing.
+- **extmarks are the source of truth for *position*.** Both `]h`/`[h`
+  navigation and the neominimap handler fold the buffer's *live* extmarks into
+  blocks via `M.get_blocks(bufnr)` — never a snapshot table. Neovim auto-shifts
+  extmarks as you insert/delete lines, so the marks are already in the right
+  place the instant you edit; the minimap realigns at neominimap's own repaint
+  cadence (~200ms) instead of lagging the debounced blame (up to 1.6s + blame
+  time on a big file). The background re-blame only revises *membership* (a
+  line you just typed isn't the commit's, so it later drops out) — repositioning
+  is free and needs no blame.
 - **priorities are layered.** In the *buffer*, commit-lens sign priority is 10
   (> gitsigns' 6) so the historical mark shows. On the *minimap* it's
   deliberately **1** (< gitsigns' 6) so your live gitsigns green/red covers the

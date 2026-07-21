@@ -3,10 +3,14 @@
 -- gitsigns hunks in green/red.
 --
 -- Registered via `vim.g.neominimap.handlers` (neominimap's public custom-handler
--- API). It reads the per-buffer `commit_lens_blocks` that the core module
--- already computes (block = a contiguous run of marked lines), so it costs
--- nothing extra — no second blame. commit-lens fires `User CommitLensUpdate`
--- on activate/clear/refresh, and this handler's autocmd repaints that buffer.
+-- API). It folds the buffer's *live* commit-lens extmarks into blocks via
+-- `commit-lens.get_blocks` (block = a contiguous run of marked lines), so it
+-- costs nothing extra — no second blame, and no stale snapshot. Because it reads
+-- the extmarks (which Neovim auto-shifts on every edit) rather than a table
+-- captured at blame time, the minimap marks realign the instant neominimap
+-- repaints, instead of lagging behind the debounced (up to 1.6s + blame)
+-- re-render. commit-lens fires `User CommitLensUpdate` on activate/clear/refresh,
+-- and neominimap's own text-update cycle also re-polls this handler.
 --
 -- Return this module's table from your neominimap `handlers` list.
 
@@ -42,10 +46,11 @@ return {
 	---@param bufnr integer
 	---@return Neominimap.Map.Handler.Annotation[]
 	get_annotations = function(bufnr)
-		local blocks = vim.b[bufnr] and vim.b[bufnr].commit_lens_blocks
-		if not blocks then
+		local ok, cl = pcall(require, "commit-lens")
+		if not ok then
 			return {}
 		end
+		local blocks = cl.get_blocks(bufnr)
 		local annotations = {}
 		for _, b in ipairs(blocks) do
 			annotations[#annotations + 1] = {

@@ -301,18 +301,38 @@ local function hits_equal(a, b)
 	return true
 end
 
--- Collapse a sorted array of hit line numbers into contiguous blocks.
--- Returns an array of { first = <lnum>, last = <lnum> }. A block is a run of
--- consecutive marked lines; navigation jumps between block starts so a long
--- edited region counts as one stop, not N.
-local function to_blocks(hits)
+-- Fold the buffer's *live* commit-lens extmarks into contiguous blocks
+-- ({ first = <lnum>, last = <lnum> }, 1-based inclusive). A block is a run of
+-- consecutive marked lines, so a long marked region is one navigation stop, not
+-- N, and the minimap draws one span instead of many.
+--
+-- Reads the extmark rows directly — which Neovim auto-shifts as you insert or
+-- delete lines — rather than a snapshot taken at blame time. That is the whole
+-- point: after an edit the marks are *already* in the right place, so callers
+-- (]h/[h navigation, the neominimap handler) realign immediately at whatever
+-- cadence they poll, without waiting on the debounced (up to 1.6s + blame)
+-- re-render. The background re-blame still runs, but only to add/drop
+-- membership (a just-typed line isn't the commit's); repositioning is free.
+function M.get_blocks(bufnr)
+	bufnr = bufnr or vim.api.nvim_get_current_buf()
+	if not vim.api.nvim_buf_is_valid(bufnr) then
+		return {}
+	end
+	-- nvim_buf_get_extmarks returns marks in ascending (row, col) order, so we
+	-- can fold in one pass without sorting.
+	local marks = vim.api.nvim_buf_get_extmarks(bufnr, M.ns, 0, -1, {})
 	local blocks = {}
-	for _, lnum in ipairs(hits) do
-		local prev = blocks[#blocks]
-		if prev and lnum == prev.last + 1 then
-			prev.last = lnum
-		else
-			blocks[#blocks + 1] = { first = lnum, last = lnum }
+	local prev_row
+	for _, m in ipairs(marks) do
+		local lnum = m[2] + 1 -- extmark row is 0-based; blocks are 1-based
+		if lnum ~= prev_row then -- collapse any duplicate marks landing on one row
+			local last = blocks[#blocks]
+			if last and lnum == last.last + 1 then
+				last.last = lnum
+			else
+				blocks[#blocks + 1] = { first = lnum, last = lnum }
+			end
+			prev_row = lnum
 		end
 	end
 	return blocks
@@ -326,7 +346,11 @@ local function fire_minimap_update(bufnr)
 	})
 end
 
--- Paint the computed hits onto a buffer: extmarks + stored blocks + minimap.
+-- Paint the computed hits onto a buffer: extmarks + minimap refresh. The
+-- extmarks are the single source of truth for *where* the marks are — both
+-- ]h/[h navigation and the neominimap handler fold them live via M.get_blocks,
+-- so there is no separate block snapshot to keep in sync (and none to go stale
+-- when you edit before the next blame lands).
 local function apply_hits(bufnr, hits)
 	vim.api.nvim_buf_clear_namespace(bufnr, M.ns, 0, -1)
 	for _, lnum in ipairs(hits) do
@@ -339,9 +363,6 @@ local function apply_hits(bufnr, hits)
 			priority = M.config.priority,
 		})
 	end
-	-- Store block starts (not every line) so ]h/[h jump by contiguous region;
-	-- the neominimap handler reads the same blocks.
-	vim.b[bufnr].commit_lens_blocks = to_blocks(hits)
 	fire_minimap_update(bufnr)
 end
 
@@ -378,7 +399,7 @@ function M.render(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
 	if not M.enabled or not next(M.commits) or not eligible(bufnr) then
 		vim.api.nvim_buf_clear_namespace(bufnr, M.ns, 0, -1)
-		vim.b[bufnr].commit_lens_blocks = nil
+		fire_minimap_update(bufnr)
 		buf_cache[bufnr] = nil
 		return
 	end
@@ -457,7 +478,7 @@ local function clear_all()
 		if vim.api.nvim_buf_is_valid(bufnr) then
 			vim.api.nvim_buf_clear_namespace(bufnr, M.ns, 0, -1)
 			if vim.api.nvim_buf_is_loaded(bufnr) then
-				vim.b[bufnr].commit_lens_blocks = nil
+				-- Extmarks gone → M.get_blocks now returns {}; tell the minimap.
 				fire_minimap_update(bufnr)
 			end
 		end
@@ -518,7 +539,7 @@ end
 
 local function jump(direction)
 	local bufnr = vim.api.nvim_get_current_buf()
-	local blocks = vim.b[bufnr].commit_lens_blocks
+	local blocks = M.get_blocks(bufnr)
 	if not blocks or #blocks == 0 then
 		vim.notify("commit-lens: no marked lines in this buffer", vim.log.levels.INFO)
 		return
