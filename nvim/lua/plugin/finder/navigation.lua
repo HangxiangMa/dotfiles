@@ -40,8 +40,10 @@ return {
 					group_empty = true,
 					-- Full default decorator list (nvim-tree drops the builtins
 					-- if you override `decorators`), with commit-lens appended
-					-- before "Cut" so files touched by the chosen commits get
-					-- an orange sign + name in the tree.
+					-- before "Cut" so files touched by the chosen commits get a
+					-- magenta glyph + name in the tree. commit-lens now keeps
+					-- its file-manager glue behind per-manager adapters; this is
+					-- the nvim-tree one (the registry drives its refresh).
 					decorators = {
 						"Git",
 						"Open",
@@ -50,7 +52,7 @@ return {
 						"Bookmark",
 						"Diagnostics",
 						"Copied",
-						require("commit-lens.tree-decorator"),
+						require("commit-lens.tree.nvim-tree").decorator,
 						"Cut",
 					},
 				},
