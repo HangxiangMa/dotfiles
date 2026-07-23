@@ -275,9 +275,10 @@ return {
 			{ "<leader>gm", group = "Commit Lens" },
 			{ "<leader>gmm", "<cmd>CommitLens<cr>", desc = "Highlight a commit's changes" },
 			{ "<leader>gmc", "<cmd>CommitLensClear<cr>", desc = "Clear highlight" },
+			{ "<leader>gmt", "<cmd>CommitLensToggle<cr>", desc = "Toggle highlight" },
 			{ "<leader>gmf", "<cmd>CommitLensFiles<cr>", desc = "List changed files" },
-			{ "]h", desc = "Next changed block" },
-			{ "[h", desc = "Prev changed block" },
+			{ "]h", desc = "Next commit-lens block" },
+			{ "[h", desc = "Prev commit-lens block" },
 
 			-- diagnostics
 			{ "<leader>a", group = "Diagnostics" },

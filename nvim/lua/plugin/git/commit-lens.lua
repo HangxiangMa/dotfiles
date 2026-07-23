@@ -8,10 +8,10 @@
 return {
 	"commit-lens",
 	dir = vim.fn.stdpath("config") .. "/plugins/commit-lens",
-	cmd = { "CommitLens", "CommitLensClear", "CommitLensFiles" },
+	cmd = { "CommitLens", "CommitLensClear", "CommitLensToggle", "CommitLensFiles" },
 	keys = {
-		{ "]h", desc = "Next commit-lens line" },
-		{ "[h", desc = "Prev commit-lens line" },
+		{ "]h", desc = "Next commit-lens block" },
+		{ "[h", desc = "Prev commit-lens block" },
 	},
 	config = function()
 		require("commit-lens").setup()

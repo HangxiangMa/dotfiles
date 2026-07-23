@@ -30,7 +30,21 @@
 
 local M = {}
 
+---@class CommitLens.Config
+---@field sign_text string          -- buffer sign glyph (magenta via CommitLensSign)
+---@field accent string             -- the one accent colour, e.g. "#FF5FD7"
+---@field line_blend number         -- accent→Normal-bg blend for the line tint (0..1)
+---@field priority integer          -- buffer extmark/sign priority (gitsigns = 6)
+---@field max_lines integer         -- skip buffers with more lines than this
+---@field skip_filetypes table<string,boolean>  -- filetypes to skip
+---@field blame_args string[]       -- flags spliced into every `git blame` (e.g. {"-w","-M"})
+---@field blame_jobs integer        -- max concurrent tree-refinement blames
+---@field render_jobs integer       -- max concurrent buffer-render blames
+---@field edit_debounce integer     -- ms to debounce re-blame after an edit (scaled by size)
+---@field tree CommitLens.TreeConfig  -- file-tree integration (see tree.lua)
+
 -- Default config; overridable via setup(opts).
+---@type CommitLens.Config
 M.config = {
 	-- Sign glyph for a commit-lens line in the *buffer*: the same vertical bar
 	-- "│" gitsigns uses. We don't invent a distinct glyph here — the magenta
@@ -59,12 +73,37 @@ M.config = {
 	max_lines = 100000,
 	-- Skip filetypes (bigfile is snacks' large-file sentinel).
 	skip_filetypes = { bigfile = true },
+	-- Extra flags handed to every `git blame` (buffer marks AND tree refinement),
+	-- spliced in right after "blame". These decide how aggressively a commit is
+	-- credited for lines that were later reshaped:
+	--   -w : ignore whitespace-only changes, so a line the commit introduced that
+	--        was merely re-indented (or had trailing space touched) still counts.
+	--   -M : detect moves *within a file*, so a block the commit added and that was
+	--        later relocated elsewhere in the same file is still attributed to it.
+	-- -C (detect copies/moves *across* files in the same commit) is deliberately
+	-- left OUT of the default: it is markedly slower on large files and tends to
+	-- over-attribute (crediting the commit for lines it only coincidentally
+	-- matches). Users who want it can set `blame_args = { "-w", "-M", "-C" }`.
+	-- These compose cleanly with `--line-porcelain --contents -` and do not change
+	-- the porcelain header format parse_blame keys on.
+	blame_args = { "-w", "-M" },
 	-- Max concurrent `git blame` subprocesses when refining the tree file set.
 	blame_jobs = 8,
+	-- Max concurrent buffer-render `git blame` subprocesses. Kept separate from
+	-- blame_jobs so a burst of buffer renders (session restore, :bufdo, a big
+	-- quickfix populating windows) and the tree refinement don't contend for one
+	-- budget. Per-buffer dedup already collapses the common double-fire; this caps
+	-- the aggregate storm across many buffers opening at once.
+	render_jobs = 8,
 	-- Debounce (ms) for re-blaming a buffer after you edit it, so the marks
 	-- (and the minimap) track your live changes without re-running on every
 	-- keystroke.
 	edit_debounce = 400,
+	-- File-tree integration, handed to the tree-manager registry
+	-- (lua/commit-lens/tree.lua). `managers = "auto"` drives every supported
+	-- manager that is loaded; pass a list (e.g. { "nvim-tree" }) to restrict it,
+	-- or {} to disable the tree layer. See that module for the adapter contract.
+	tree = { managers = "auto" },
 }
 
 -- Private namespace: isolates our extmarks from gitsigns and everyone else.
@@ -72,6 +111,11 @@ M.ns = vim.api.nvim_create_namespace("commit_lens")
 
 -- The chosen commit set: a map of full SHA -> true. Empty = inactive.
 M.commits = {}
+-- The last non-empty commit set + its display names, remembered across a clear so
+-- :CommitLensToggle can flip the lens back on without re-picking. nil until the
+-- first successful activate this session.
+M.last_commits = nil
+M.last_names = nil
 -- Whether the lens is currently on. Gated so autocmds are cheap when off.
 M.enabled = false
 -- Monotonic version, bumped on every activate/clear. Any in-flight async blame
@@ -89,6 +133,21 @@ M.tree_dirs = {}
 -- Per-buffer render cache: bufnr -> { version, tick, hits }. Lets repeated
 -- BufWinEnter on an unchanged buffer skip the blame entirely.
 local buf_cache = {}
+
+-- Per-buffer in-flight blame claim: bufnr -> { version, tick }. Exactly one blame
+-- is allowed in flight per (buffer, commit-set version, changedtick). This is what
+-- collapses the BufReadPost+BufWinEnter double-fire on a single `:e` into one blame
+-- (both would otherwise miss the still-empty cache and each spawn a subprocess).
+-- Keyed by (version, tick), NOT tick alone: keying by tick would wrongly skip the
+-- re-render after a re-activate at the same content tick, leaving the buffer
+-- unmarked for the new commit set.
+local pending = {}
+
+-- Global cap on concurrent buffer-render blames (config.render_jobs). Renders past
+-- the cap queue in blame_queue and drain as slots free, so a bulk open (session
+-- restore, :bufdo, a big quickfix) can't spawn one `git blame` per buffer at once.
+local blame_inflight = 0
+local blame_queue = {} -- FIFO of { bufnr, version, tick } awaiting a slot
 
 -- Per-buffer debounce timers for edit-triggered re-render (uv timers).
 local edit_timers = {}
@@ -164,14 +223,16 @@ end
 -- Git helpers
 -- ---------------------------------------------------------------------------
 
--- Normalize a rev the user typed (short SHA, HEAD~2, tag…) to a full SHA so
--- set-membership against blame output is exact. Returns nil on failure.
-local function full_sha(rev, cwd)
-	local out = vim.fn.systemlist({ "git", "-C", cwd, "rev-parse", "--verify", "--quiet", rev .. "^{commit}" })
-	if vim.v.shell_error ~= 0 or not out[1] or out[1] == "" then
-		return nil
-	end
-	return out[1]
+-- Build a `git blame` argv, splicing M.config.blame_args (e.g. {-w,-M}) in right
+-- after "blame". `head` is the fixed prefix ({ "git", "-C", dir, "blame" }); the
+-- caller appends the tail (--line-porcelain, --contents, path, …). Keeps the two
+-- blame call sites in lock-step on the configured flags.
+local function blame_cmd(head, tail)
+	local cmd = {}
+	vim.list_extend(cmd, head)
+	vim.list_extend(cmd, M.config.blame_args or {})
+	vim.list_extend(cmd, tail)
+	return cmd
 end
 
 -- Absolute directory of a buffer's file, or nil if it has none on disk.
@@ -185,27 +246,6 @@ local function buf_dir(bufnr)
 		return nil
 	end
 	return dir
-end
-
--- Candidate files the chosen commits touched: union of `git show --name-only`
--- across M.commits (robust under non-linear history). Returns rel-path list +
--- repo root. These are candidates only; blame decides which actually survive.
-local function candidate_files(cwd)
-	local root = vim.fn.systemlist({ "git", "-C", cwd, "rev-parse", "--show-toplevel" })[1]
-	local seen, rel = {}, {}
-	for sha in pairs(M.commits) do
-		local out = vim.fn.systemlist({ "git", "-C", cwd, "show", "--name-only", "--pretty=format:", sha })
-		if vim.v.shell_error == 0 then
-			for _, f in ipairs(out) do
-				if f ~= "" and not seen[f] then
-					seen[f] = true
-					rel[#rel + 1] = f
-				end
-			end
-		end
-	end
-	table.sort(rel)
-	return rel, root
 end
 
 -- Mark every ancestor directory of `path` (down to and including `base`).
@@ -313,6 +353,11 @@ end
 -- cadence they poll, without waiting on the debounced (up to 1.6s + blame)
 -- re-render. The background re-blame still runs, but only to add/drop
 -- membership (a just-typed line isn't the commit's); repositioning is free.
+---@class CommitLens.Block
+---@field first integer  -- first marked line (1-based, inclusive)
+---@field last  integer  -- last marked line (1-based, inclusive)
+---@param bufnr? integer  -- defaults to the current buffer
+---@return CommitLens.Block[]
 function M.get_blocks(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
 	if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -383,7 +428,7 @@ local function blame_buffer(bufnr, cb)
 		contents = contents .. "\n"
 	end
 	vim.system(
-		{ "git", "-C", dir, "blame", "--line-porcelain", "--contents", "-", "--", file },
+		blame_cmd({ "git", "-C", dir, "blame" }, { "--line-porcelain", "--contents", "-", "--", file }),
 		{ stdin = contents, text = true },
 		function(res)
 			local hits = (res.code == 0 and res.stdout) and parse_blame(res.stdout) or nil
@@ -394,13 +439,79 @@ local function blame_buffer(bufnr, cb)
 	)
 end
 
--- Render (or clear) the lens for one buffer. Async + cached.
+-- Launch the blame for a claimed (bufnr, ver, tick) and paint its result. Split
+-- out of M.render so the concurrency queue can drain straight to it — re-entering
+-- M.render on dequeue would just re-dedup against the still-live pending claim and
+-- never launch. The caller MUST have set pending[bufnr] = { version, tick } first.
+local function start_blame(bufnr, ver, tick)
+	blame_inflight = blame_inflight + 1
+	blame_buffer(bufnr, function(hits)
+		blame_inflight = blame_inflight - 1
+
+		-- Release our claim iff it is still ours. A newer claim (from a version
+		-- bump, or a later tick) may already sit here; clobbering it would defeat
+		-- the dedup and drop the tick-advance re-render below.
+		local mine = pending[bufnr]
+		if mine and mine.version == ver and mine.tick == tick then
+			pending[bufnr] = nil
+		end
+
+		-- A slot just freed — drain the queue regardless of this buffer's fate.
+		-- Re-validate each claim at dequeue: a version bump or a newer tick may
+		-- have orphaned it (its buffer may even be gone).
+		while #blame_queue > 0 and blame_inflight < M.config.render_jobs do
+			local q = table.remove(blame_queue, 1)
+			local claim = pending[q.bufnr]
+			if
+				claim
+				and claim.version == q.ver
+				and claim.tick == q.tick
+				and M.version == q.ver
+				and vim.api.nvim_buf_is_valid(q.bufnr)
+			then
+				start_blame(q.bufnr, q.ver, q.tick)
+			end
+		end
+
+		-- Now this blame's own result. Discard if superseded or buffer gone.
+		if M.version ~= ver or not vim.api.nvim_buf_is_valid(bufnr) then
+			return
+		end
+		if not M.enabled then
+			return
+		end
+		hits = hits or {}
+		-- Short-circuit the repaint when the marked lines are unchanged. Compare
+		-- against the LIVE cache, not a snapshot captured at render entry: with
+		-- same-tick renders deduped, the only remaining overlap is different-tick
+		-- blames, and a stale baseline could wrongly skip a needed repaint.
+		-- buf_cache[bufnr].hits always mirrors the currently-painted extmarks for
+		-- this version, so it is the correct baseline. Extmarks auto-shift with
+		-- edits, so identical hit line numbers are already in the right place.
+		local live = buf_cache[bufnr]
+		if not (live and live.version == ver and hits_equal(live.hits, hits)) then
+			apply_hits(bufnr, hits)
+		end
+		buf_cache[bufnr] = { version = ver, tick = tick, hits = hits }
+
+		-- The buffer changed while we were blaming, so these hits describe stale
+		-- content. Re-render once for the current tick (pending was cleared above,
+		-- so this relaunches; it self-dedups if a blame for that tick is pending).
+		if vim.api.nvim_buf_get_changedtick(bufnr) ~= tick then
+			M.render(bufnr)
+		end
+	end)
+end
+
+-- Render (or clear) the lens for one buffer. Async + cached + in-flight deduped.
+---@param bufnr? integer  -- defaults to the current buffer
 function M.render(bufnr)
 	bufnr = bufnr or vim.api.nvim_get_current_buf()
 	if not M.enabled or not next(M.commits) or not eligible(bufnr) then
 		vim.api.nvim_buf_clear_namespace(bufnr, M.ns, 0, -1)
 		fire_minimap_update(bufnr)
 		buf_cache[bufnr] = nil
+		pending[bufnr] = nil
 		return
 	end
 	local ver = M.version
@@ -409,27 +520,21 @@ function M.render(bufnr)
 	if cache and cache.version == ver and cache.tick == tick then
 		return -- already rendered for this exact (commit set, buffer content)
 	end
-	blame_buffer(bufnr, function(hits)
-		-- Discard if superseded (new activate/clear) or buffer gone.
-		if M.version ~= ver or not vim.api.nvim_buf_is_valid(bufnr) then
-			return
-		end
-		if not M.enabled then
-			return
-		end
-		hits = hits or {}
-		-- Skip the repaint entirely when the marked lines are unchanged from the
-		-- last render for this same commit-set version. Extmarks auto-shift with
-		-- edits, so if the hit line numbers are identical they're already in the
-		-- right place — no clear, no re-set, no minimap refresh. This is the
-		-- hot path while you type in an unrelated part of the file.
-		if cache and cache.version == ver and hits_equal(cache.hits, hits) then
-			buf_cache[bufnr] = { version = ver, tick = tick, hits = hits }
-			return
-		end
-		apply_hits(bufnr, hits)
-		buf_cache[bufnr] = { version = ver, tick = tick, hits = hits }
-	end)
+	-- Dedup: a blame for this exact (version, tick) is already in flight or queued.
+	-- Collapses the BufReadPost+BufWinEnter double-fire on `:e`, and coalesces an
+	-- edit-debounced render with a buffer-enter render landing at the same tick.
+	local p = pending[bufnr]
+	if p and p.version == ver and p.tick == tick then
+		return
+	end
+	-- Claim the slot before launching OR queuing, so duplicates dedup even while a
+	-- render waits for a free slot.
+	pending[bufnr] = { version = ver, tick = tick }
+	if blame_inflight >= M.config.render_jobs then
+		blame_queue[#blame_queue + 1] = { bufnr = bufnr, ver = ver, tick = tick }
+	else
+		start_blame(bufnr, ver, tick)
+	end
 end
 
 -- Debounced re-render after edits. Editing shifts line numbers, so the cached
@@ -486,50 +591,104 @@ local function clear_all()
 	buf_cache = {}
 end
 
--- Ask nvim-tree to re-render so its commit-lens decorator picks up the new
--- tree_files/tree_dirs. No-op if nvim-tree isn't loaded.
+-- Ask every configured file manager to re-render so its commit-lens adapter
+-- picks up the new tree_files/tree_dirs. Delegated to the tree-manager registry
+-- (lua/commit-lens/tree.lua), which fans out to each loaded manager's adapter.
+-- No-op if none is loaded.
 local function reload_tree()
 	pcall(function()
-		require("nvim-tree.api").tree.reload()
+		require("commit-lens.tree").refresh()
+	end)
+end
+
+-- Candidate files the chosen commits touched: union of `git show --name-only`
+-- across M.commits (robust under non-linear history). Fully async (never blocks
+-- the UI, matching the rest of the plugin): resolves the repo toplevel, then fans
+-- `git show` across the commits bounded by config.blame_jobs, and calls
+-- cb(rel, root) on the main loop. These are candidates only; blame decides which
+-- actually survive. Defined here (after run_pool) so it can use the pool.
+local function candidate_files(cwd, cb)
+	vim.system({ "git", "-C", cwd, "rev-parse", "--show-toplevel" }, { text = true }, function(rp)
+		vim.schedule(function()
+			local root = (rp.code == 0 and rp.stdout) and (rp.stdout:gsub("%s+$", "")) or nil
+			if root == "" then
+				root = nil
+			end
+			-- Snapshot the commit set into a stable job list.
+			local shas = {}
+			for sha in pairs(M.commits) do
+				shas[#shas + 1] = sha
+			end
+			local seen, rel = {}, {}
+			run_pool(shas, M.config.blame_jobs, function(sha, done)
+				vim.system(
+					{ "git", "-C", cwd, "show", "--name-only", "--pretty=format:", sha },
+					{ text = true },
+					function(res)
+						vim.schedule(function()
+							if res.code == 0 and res.stdout then
+								for f in res.stdout:gmatch("[^\r\n]+") do
+									if f ~= "" and not seen[f] then
+										seen[f] = true
+										rel[#rel + 1] = f
+									end
+								end
+							end
+							done()
+						end)
+					end
+				)
+			end, function()
+				table.sort(rel)
+				cb(rel, root)
+			end)
+		end)
 	end)
 end
 
 -- Refine the tree file set with blame: keep only candidates that still have a
--- surviving line from the chosen commits (same "口径" as the buffer marks).
--- Runs async, bounded to config.blame_jobs, then reloads the tree once.
+-- surviving line from the chosen commits (same "口径" as the buffer marks). Fully
+-- async: gathers candidates via candidate_files, then blames them bounded to
+-- config.blame_jobs, then reloads the tree once. Every stage is version-gated so a
+-- newer activate/clear supersedes it cleanly.
 local function rebuild_tree_sets(cwd)
-	local rel, root = candidate_files(cwd)
-	M.repo_root = root
-	local base = root or "."
-	M.tree_files = {}
-	M.tree_dirs = {}
 	local ver = M.version
-	run_pool(rel, M.config.blame_jobs, function(f, done)
-		vim.system(
-			{ "git", "-C", base, "blame", "--line-porcelain", "--", f },
-			{ text = true },
-			function(res)
-				vim.schedule(function()
-					-- Skip if superseded by a newer activate/clear.
-					if M.version == ver and res.code == 0 and res.stdout then
-						for l in res.stdout:gmatch("[^\r\n]+") do
-							local sha = l:match("^(%x+)%s+%d+%s+%d+")
-							if sha and M.commits[sha] then
-								local path = base .. "/" .. f
-								M.tree_files[path] = true
-								add_ancestors(M.tree_dirs, path, base)
-								break
+	candidate_files(cwd, function(rel, root)
+		-- Superseded while gathering candidates → drop the whole rebuild.
+		if M.version ~= ver then
+			return
+		end
+		M.repo_root = root
+		local base = root or "."
+		M.tree_files = {}
+		M.tree_dirs = {}
+		run_pool(rel, M.config.blame_jobs, function(f, done)
+			vim.system(
+				blame_cmd({ "git", "-C", base, "blame" }, { "--line-porcelain", "--", f }),
+				{ text = true },
+				function(res)
+					vim.schedule(function()
+						-- Skip if superseded by a newer activate/clear.
+						if M.version == ver and res.code == 0 and res.stdout then
+							for l in res.stdout:gmatch("[^\r\n]+") do
+								local sha = l:match("^(%x+)%s+%d+%s+%d+")
+								if sha and M.commits[sha] then
+									local path = base .. "/" .. f
+									M.tree_files[path] = true
+									add_ancestors(M.tree_dirs, path, base)
+									break
+								end
 							end
 						end
-					end
-					done()
-				end)
+						done()
+					end)
+				end
+			)
+		end, function()
+			if M.version == ver then
+				reload_tree()
 			end
-		)
-	end, function()
-		if M.version == ver then
-			reload_tree()
-		end
+		end)
 	end)
 end
 
@@ -584,45 +743,136 @@ end
 -- Activation
 -- ---------------------------------------------------------------------------
 
--- Turn the lens on for a list of user-typed revs (resolved to full SHAs).
-local function activate(revs)
-	local cwd = buf_dir(vim.api.nvim_get_current_buf()) or vim.fn.getcwd()
-	local set, names = {}, {}
-	for _, rev in ipairs(revs) do
-		local sha = full_sha(rev, cwd)
-		if sha then
-			set[sha] = true
-			names[#names + 1] = rev
-		else
-			vim.notify("commit-lens: cannot resolve rev '" .. rev .. "'", vim.log.levels.WARN)
-		end
-	end
-	if not next(set) then
-		vim.notify("commit-lens: no valid commits given", vim.log.levels.ERROR)
-		return
-	end
+-- Monotonic activation-attempt counter, bumped SYNCHRONOUSLY at the start of every
+-- activate()/clear(). It lets an in-flight async rev-resolution notice that a newer
+-- :CommitLens (or a clear) superseded it before it committed, and bail. This is a
+-- DIFFERENT token from M.version: M.version guards in-flight *blames* and is bumped
+-- only at the commit point (after resolution succeeds), so a failed or superseded
+-- resolution never tears down the currently-rendered session.
+local activate_seq = 0
+
+-- Commit point: publish a resolved commit set as the active lens session. Called
+-- once resolution has produced a non-empty `set` (SHA -> true) with display
+-- `names`. Bumping M.version HERE (not at activate entry) is deliberate — see
+-- activate_seq above. Also remembers the set for :CommitLensToggle.
+local function commit_set(set, names, cwd)
 	M.commits = set
+	M.last_commits = set
+	M.last_names = names
 	M.enabled = true
 	M.version = M.version + 1 -- invalidate caches + supersede in-flight blames
 	buf_cache = {}
+	pending = {}
 	render_all()
 	rebuild_tree_sets(cwd)
 	vim.notify("commit-lens: on for " .. table.concat(names, ", "), vim.log.levels.INFO)
+end
+
+-- Turn the lens on for a list of user-typed revs. Fully async (matching the rest
+-- of the plugin — never blocks the UI): each rev is resolved to a full SHA via an
+-- async `git rev-parse`, bounded by config.blame_jobs. Only once ALL revs resolve
+-- do we commit the new session, so a second :CommitLens issued mid-resolution
+-- supersedes the first deterministically (via activate_seq).
+local function activate(revs)
+	local cwd = buf_dir(vim.api.nvim_get_current_buf()) or vim.fn.getcwd()
+	activate_seq = activate_seq + 1
+	local seq = activate_seq
+
+	-- Resolve by index so notify order matches the user's input order.
+	local resolved = {}
+	local idxs = {}
+	for i = 1, #revs do
+		idxs[i] = i
+	end
+
+	run_pool(idxs, M.config.blame_jobs, function(i, done)
+		vim.system(
+			{ "git", "-C", cwd, "rev-parse", "--verify", "--quiet", revs[i] .. "^{commit}" },
+			{ text = true },
+			function(res)
+				vim.schedule(function()
+					-- Record only if we are still the current attempt (else another
+					-- activate/clear already superseded us; on_done will bail).
+					if seq == activate_seq and res.code == 0 and res.stdout then
+						local sha = res.stdout:match("^(%x+)")
+						if sha and sha ~= "" then
+							resolved[i] = sha
+						end
+					end
+					done()
+				end)
+			end
+		)
+	end, function()
+		-- Superseded by a newer activate()/clear() while resolving → do nothing,
+		-- and emit no warnings (the winning attempt owns all user-facing output).
+		if seq ~= activate_seq then
+			return
+		end
+		local set, names = {}, {}
+		for i = 1, #revs do
+			if resolved[i] then
+				set[resolved[i]] = true
+				names[#names + 1] = revs[i]
+			else
+				vim.notify("commit-lens: cannot resolve rev '" .. revs[i] .. "'", vim.log.levels.WARN)
+			end
+		end
+		if not next(set) then
+			vim.notify("commit-lens: no valid commits given", vim.log.levels.ERROR)
+			return -- previous session, if any, left intact
+		end
+		commit_set(set, names, cwd)
+	end)
 end
 
 function M.clear()
 	M.commits = {}
 	M.enabled = false
 	M.version = M.version + 1
+	activate_seq = activate_seq + 1 -- cancel any in-flight rev-resolution (else it
+	-- would re-enable the lens right after this clear)
 	M.tree_files = {}
 	M.tree_dirs = {}
+	-- Stop + close any live edit-debounce timers. Without this they idle-spin (each
+	-- fires once more and no-ops on the M.enabled guard) and leak the uv handle
+	-- until the buffer is deleted.
+	for bufnr, timer in pairs(edit_timers) do
+		timer:stop()
+		timer:close()
+		edit_timers[bufnr] = nil
+	end
+	pending = {}
 	clear_all()
 	reload_tree()
 	vim.notify("commit-lens: off", vim.log.levels.INFO)
 end
 
+-- Toggle the lens: off if currently on; else re-activate the last chosen set (no
+-- re-resolution needed — those SHAs are already full and valid); else, if nothing
+-- was ever chosen this session, open the picker so the key is never a dead end.
+function M.toggle()
+	if M.enabled then
+		M.clear()
+		return
+	end
+	if M.last_commits and next(M.last_commits) then
+		local cwd = buf_dir(vim.api.nvim_get_current_buf()) or vim.fn.getcwd()
+		-- Copy the set so the remembered table and the live one don't alias.
+		local set = {}
+		for sha in pairs(M.last_commits) do
+			set[sha] = true
+		end
+		activate_seq = activate_seq + 1 -- align with the activate/clear discipline
+		commit_set(set, vim.deepcopy(M.last_names or {}), cwd)
+		return
+	end
+	M.pick_commits()
+end
+
 -- Open a fzf-lua git_commits multi-select; chosen commits activate the lens.
-local function pick_commits()
+-- Exposed on M so M.toggle can fall back to it (and it's defined after toggle).
+function M.pick_commits()
 	local ok, fzf = pcall(require, "fzf-lua")
 	if not ok then
 		vim.notify("commit-lens: fzf-lua not available; pass SHAs directly, e.g. :CommitLens <sha>", vim.log.levels.ERROR)
@@ -705,15 +955,20 @@ end
 -- Setup: highlights, commands, keymaps, autocmds.
 -- ---------------------------------------------------------------------------
 
+---@param opts? CommitLens.Config  -- partial; deep-merged over the defaults
 function M.setup(opts)
 	M.config = vim.tbl_deep_extend("force", M.config, opts or {})
 	create_highlights()
+
+	-- Bring up the tree-manager registry: register builtin adapters, resolve
+	-- "auto" vs an explicit manager list, and let self-wiring adapters attach.
+	require("commit-lens.tree").setup(M.config.tree)
 
 	vim.api.nvim_create_user_command("CommitLens", function(cmd)
 		if cmd.args and cmd.args ~= "" then
 			activate(vim.split(cmd.args, "%s+", { trimempty = true }))
 		else
-			pick_commits()
+			M.pick_commits()
 		end
 	end, { nargs = "*", desc = "commit-lens: mark lines from commit(s) (no args = fzf pick)" })
 
@@ -721,9 +976,13 @@ function M.setup(opts)
 		M.clear()
 	end, { desc = "commit-lens: clear the lens" })
 
+	vim.api.nvim_create_user_command("CommitLensToggle", function()
+		M.toggle()
+	end, { desc = "commit-lens: toggle the lens (re-uses last set, else picks)" })
+
 	vim.api.nvim_create_user_command("CommitLensFiles", function()
 		M.files()
-	end, { desc = "commit-lens: list touched files in quickfix" })
+	end, { desc = "commit-lens: list touched files (fzf, quickfix fallback)" })
 
 	-- ]h / [h jump between marked blocks (no-op notify when none).
 	vim.keymap.set("n", "]h", M.goto_next, { silent = true, desc = "Next commit-lens block" })
@@ -754,11 +1013,12 @@ function M.setup(opts)
 			end
 		end,
 	})
-	-- Drop cache + timer for deleted buffers.
+	-- Drop cache + timer + in-flight claim for deleted buffers.
 	vim.api.nvim_create_autocmd("BufDelete", {
 		group = aug,
 		callback = function(args)
 			buf_cache[args.buf] = nil
+			pending[args.buf] = nil
 			local timer = edit_timers[args.buf]
 			if timer then
 				timer:stop()
