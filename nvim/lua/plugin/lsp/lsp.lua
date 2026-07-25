@@ -8,6 +8,13 @@ local SERVERS = {
 	bashls = { mason = "bash-language-server", exe = "bash-language-server" },
 	clangd = { mason = "clangd", exe = "clangd", custom = "clangd" },
 	cmake = { mason = "cmake-language-server", exe = "cmake-language-server" },
+	-- Not on mason (it's camera-kernel's own in-tree tool, not a package-
+	-- manager install). exe = "python3" rather than "kclippy": kclippy.lua's
+	-- own setup() falls back to `python3 <checkout>/kclippy.py` when a bare
+	-- `kclippy` isn't on PATH, and gates activation per-buffer on actually
+	-- being inside a camera-kernel checkout — so probing for "kclippy" here
+	-- would wrongly warn on every box that only has the fallback available.
+	kclippy = { exe = "python3", custom = "kclippy" },
 	lua_ls = { mason = "lua-language-server", exe = "lua-language-server" },
 	marksman = { mason = "marksman", exe = "marksman" },
 	pyright = { mason = "pyright", exe = "pyright" },
