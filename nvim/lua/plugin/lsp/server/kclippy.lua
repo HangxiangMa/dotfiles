@@ -15,24 +15,58 @@ local server = {}
 
 -- Find the camera-kernel checkout containing the current buffer, if any.
 -- Returns the kclippy tool dir (…/internal/kclippy) or nil.
+--
+-- kclippy lives at <camera-kernel>/internal/kclippy/, which is NOT an ancestor
+-- of the driver files under <camera-kernel>/drivers/ — it's a sibling. So
+-- searching upward for kclippy.py from a driver buffer never finds it. Instead
+-- locate the camera-kernel checkout ROOT (an ancestor of both drivers/ and
+-- internal/), then look for internal/kclippy/ under it. `camera_modules.bzl`
+-- is a camera-kernel-root-specific marker; `.git` is the fallback. Also handle
+-- the case where the buffer is itself inside internal/kclippy/ (editing the
+-- tool's own source) by searching upward for kclippy.py first.
+local function _valid(dir)
+	if dir and vim.fn.filereadable(dir .. "/editor/nvim-lsp.lua") == 1 then
+		return dir
+	end
+	return nil
+end
+
 local function find_kclippy_dir(bufnr)
 	local path = vim.api.nvim_buf_get_name(bufnr or 0)
 	if path == "" then
 		path = vim.loop.cwd()
 	end
+	local start = vim.fs.dirname(path)
+
+	-- 1. Buffer is inside internal/kclippy/ itself → kclippy.py is an ancestor.
 	local marker = vim.fs.find("kclippy.py", {
 		upward = true,
-		path = vim.fs.dirname(path),
+		path = start,
 		stop = vim.loop.os_homedir(),
 	})[1]
-	if not marker then
-		return nil
+	if marker then
+		local hit = _valid(vim.fs.dirname(marker))
+		if hit then
+			return hit
+		end
 	end
-	local dir = vim.fs.dirname(marker)
-	if vim.fn.filereadable(dir .. "/editor/nvim-lsp.lua") ~= 1 then
-		return nil
+
+	-- 2. Buffer is elsewhere in the checkout (e.g. drivers/…): find the
+	-- camera-kernel root by an ancestor marker, then internal/kclippy/ under it.
+	local root_marker = vim.fs.find({ "camera_modules.bzl", ".git" }, {
+		upward = true,
+		path = start,
+		stop = vim.loop.os_homedir(),
+	})[1]
+	if root_marker then
+		local root = vim.fs.dirname(root_marker)
+		local hit = _valid(root .. "/internal/kclippy")
+		if hit then
+			return hit
+		end
 	end
-	return dir
+
+	return nil
 end
 
 -- checkOK() only asks "is kclippy runnable at all" (kept for parity with
