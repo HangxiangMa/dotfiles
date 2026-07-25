@@ -5,7 +5,7 @@
 -- upward from the current buffer for the same two markers the module itself
 -- uses to find its project root (kclippy.py + editor/nvim-lsp.lua).
 --
--- All LSP registration (vim.lsp.config/enable), the seven :Kclippy* commands
+-- All LSP registration (vim.lsp.config/enable), the nine :Kclippy* commands
 -- and the toggle/scope logic live in that module, not here — this file only
 -- locates it and calls its setup(), so the behaviour has exactly one source
 -- of truth shared with anyone else using nvim-lsp.lua directly (VS Code /

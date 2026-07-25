@@ -390,6 +390,25 @@ return {
 			{ "<leader>kD", "<cmd>FzfLua lsp_definitions<cr>", desc = "Definitions" },
 			{ "<leader>kT", "<cmd>FzfLua lsp_typedefs<cr>", desc = "Type Definitions" },
 
+			-- kclippy (camera-kernel lint). The :Kclippy* commands are
+			-- registered by the checkout's editor/nvim-lsp.lua (loaded lazily
+			-- by lsp/server/kclippy.lua on the first camera-kernel buffer), so
+			-- these keys only do anything inside such a checkout; elsewhere
+			-- they no-op with "command not found". Uppercase <leader>K mirrors
+			-- the lowercase <leader>k LSP group.
+			{ "<leader>K", group = "Kclippy" },
+			{ "<leader>Kc", "<cmd>KclippyCheckCurrent<cr>", desc = "Check current file" },
+			{ "<leader>KC", "<cmd>KclippyCheckCurrentInScope<cr>", desc = "Check current (in scope)" },
+			{ "<leader>Ka", "<cmd>KclippyCheckAll<cr>", desc = "Check all files" },
+			{ "<leader>KA", "<cmd>KclippyCheckAllInScope<cr>", desc = "Check all (in scope)" },
+			{ "<leader>Kt", "<cmd>KclippyToggle<cr>", desc = "Toggle virtual-text" },
+			-- Scope sub-tree: choose what "in scope" means.
+			{ "<leader>Ks", group = "Scope" },
+			{ "<leader>Kss", "<cmd>KclippyScope<cr>", desc = "Pick commits" },
+			{ "<leader>Ksr", "<cmd>KclippyScopeRange<cr>", desc = "Set git range…" },
+			{ "<leader>Ksa", "<cmd>KclippyScopeAll<cr>", desc = "Scope: all repo files" },
+			{ "<leader>Ksx", "<cmd>KclippyScopeClear<cr>", desc = "Reset to tracked diff" },
+
 			-- Code -> Rust (rustaceanvim)
 			{ "<leader>cR", group = "Rust" },
 			{ "<leader>cRD", "<cmd>RustLsp debuggables<cr>", desc = "Rust Debuggables" },
