@@ -1,0 +1,587 @@
+From 5ae1d8beaa90e09259d9d4012daefd5c6e7493f3 Mon Sep 17 00:00:00 2001
+From: Hangxiang Ma <hangxiang.ma@oss.qualcomm.com>
+Date: Mon, 27 Jul 2026 03:48:03 -0700
+Subject: [PATCH] perf(nvim): fix big-file guard and cut per-edit whole-buffer
+ work
+
+The bigfile filetype guard that ~8 plugins rely on never fired for large
+sources: two `.*` filetype detectors shared one registry slot, so snacks'
+1.5MB byte rule silently clobbered the line-count rule and a 20k-line
+<1.5MB C file stayed filetype=c with every guard disabled. Register one
+unified detector (line OR byte OR minified) that wins the slot, and add a
+robust 12000-line threshold directly to the plugins that were keying off
+the fragile filetype.
+
+Also clamp inactive_regions' treesitter scan to the viewport instead of the
+full inactive-region span, drop redundant/per-keystroke whole-buffer passes
+(interestingwords n/N join, duplicate document_highlight, lualine selection
+sum), and make the c/cpp regex syntax a treesitter-absent fallback so it no
+longer runs then gets wiped on every file open.
+
+Signed-off-by: Hangxiang Ma <hangxiang.ma@oss.qualcomm.com>
+---
+ nvim/lua/lib/inactive_regions.lua             | 43 ++++++++---
+ nvim/lua/plugin/editor/interestingword.lua    | 12 ++-
+ nvim/lua/plugin/git/git-conflict.lua          | 46 +++++++++---
+ nvim/lua/plugin/git/gitsigns.lua              | 12 ++-
+ nvim/lua/plugin/lsp/inlayhints.lua            | 23 +++++-
+ nvim/lua/plugin/lsp/lsp.lua                   | 21 ++----
+ nvim/lua/plugin/lsp/nvim-lint.lua             | 17 ++++-
+ .../treesitter/nvim-treesitter-context.lua    | 10 ++-
+ .../lua/plugin/treesitter/nvim-treesitter.lua | 18 ++++-
+ nvim/lua/plugin/ui/lualine.lua                |  8 ++
+ nvim/lua/plugin/ui/neominimap.lua             | 12 +++
+ nvim/lua/plugin/ui/snacks.lua                 | 74 ++++++++++++++-----
+ nvim/lua/syntax/c.lua                         | 19 ++++-
+ nvim/lua/syntax/cpp.lua                       | 15 +++-
+ 14 files changed, 263 insertions(+), 67 deletions(-)
+
+diff --git a/nvim/lua/lib/inactive_regions.lua b/nvim/lua/lib/inactive_regions.lua
+index 0a96250..5ded29f 100644
+--- a/nvim/lua/lib/inactive_regions.lua
++++ b/nvim/lua/lib/inactive_regions.lua
+@@ -561,22 +561,35 @@ function H.process_regions_coroutine(bufnr, filename, regions, start_time, rende
+ 
+ 		local highlights_batch = {}
+ 
+-		-- Iterates over Treesitter captures within the current region's line range.
+-		-- `trees[1]:root()` gets the root node of the primary syntax tree. The
+-		-- iteration is constrained to lines spanning the inactive region.
++		-- Clamp the treesitter iteration to the intersection of the region and
++		-- the viewport. A single inactive region can span many thousands of
++		-- lines (e.g. a platform `#ifdef` guard wrapping most of a file); on a
++		-- big file only ~1 screen of it is visible, so iterating the region's
++		-- full line span is the dominant cost even though the region-level skip
++		-- above already dropped fully-offscreen regions. When render_top is nil
++		-- (small file, render-all) these fall back to the region bounds.
++		local iter_top = region.start.line
++		local iter_bot = region["end"].line
++		if render_top then
++			iter_top = math.max(iter_top, render_top)
++			iter_bot = math.min(iter_bot, render_bot)
++		end
++
++		-- Iterates over Treesitter captures within the clamped line range.
++		-- `trees[1]:root()` gets the root node of the primary syntax tree.
+ 		for id, node in
+ 			query:iter_captures(
+ 				trees[1]:root(),
+ 				bufnr,
+-				region.start.line, -- Start line for iteration (0-indexed).
+-				region["end"].line + 1 -- End line for iteration (exclusive, 0-indexed).
++				iter_top, -- Start line for iteration (0-indexed).
++				iter_bot + 1 -- End line for iteration (exclusive, 0-indexed).
+ 			)
+ 		do
+ 			local start_row, start_col, end_row, end_col = node:range()
+ 
+ 			-- Filters nodes to include only those strictly within the inactive
+-			-- region's boundaries.
+-			if H.is_node_in_region(start_row, end_row, region) then
++			-- region's boundaries AND (on big files) the viewport window.
++			if H.is_node_in_region(start_row, end_row, region, render_top, render_bot) then
+ 				-- Gets the name of the capture (e.g., "comment", "keyword").
+ 				local capture_name = query.captures[id]
+ 				if capture_name then
+@@ -642,12 +655,24 @@ end
+ ---@param start_row integer Node start row
+ ---@param end_row integer Node end row
+ ---@param region InactiveRegion Region to check against
++---@param render_top integer|nil Viewport top boundary (0-indexed), nil = no viewport clamp
++---@param render_bot integer|nil Viewport bottom boundary (0-indexed), nil = no viewport clamp
+ ---@return boolean
+-function H.is_node_in_region(start_row, end_row, region)
++function H.is_node_in_region(start_row, end_row, region, render_top, render_bot)
+ 	-- A node is considered within the region if its start row is not before the
+ 	-- region's start and its end row is not after the region's end. Note that we
+ 	-- assumes that regions are defined by line numbers.
+-	return start_row >= region.start.line and end_row <= region["end"].line
++	if not (start_row >= region.start.line and end_row <= region["end"].line) then
++		return false
++	end
++	-- On big files, also require the node to overlap the viewport window, so a
++	-- region that merely intersects the viewport does not get highlighted along
++	-- its full off-screen span. (The clear/redraw on scroll only covers the
++	-- viewport range, so highlighting outside it would also leak stale marks.)
++	if render_top then
++		return end_row >= render_top and start_row <= render_bot
++	end
++	return true
+ end
+ 
+ ---Apply a batch of highlights efficiently
+diff --git a/nvim/lua/plugin/editor/interestingword.lua b/nvim/lua/plugin/editor/interestingword.lua
+index 2c2b72e..6004a3f 100644
+--- a/nvim/lua/plugin/editor/interestingword.lua
++++ b/nvim/lua/plugin/editor/interestingword.lua
+@@ -7,10 +7,18 @@ return {
+ 		{ "<leader><leader>K", desc = "Cancel colors" },
+ 	},
+ 	config = function()
++		-- search_count / navigation are the ONLY code paths that join the whole
++		-- buffer into one string on every trigger: `search_count` re-joins the
++		-- buffer + matchstrpos-scans it after each `/`?`; `navigation` remaps
++		-- n/N to a jump that joins the buffer TWICE per keypress. On a 20k-line
++		-- file that turns the most common navigation keys into a per-keystroke
++		-- full-buffer scan. Both are off here — the core highlight (matchadd,
++		-- viewport-recomputed) and the <leader><leader>m/k search+color keys are
++		-- unaffected; only the built-in count readout and n/N takeover are lost.
+ 		require("interestingwords").setup({
+ 			colors = { "#e67e80", "#bfa3df", "#6cbbda", "#dfdb72", "#a4c5ea", "#9999ea", "#a7c080" },
+-			search_count = true,
+-			navigation = true,
++			search_count = false,
++			navigation = false,
+ 			scroll_center = false,
+ 			search_key = "<leader><leader>m",
+ 			cancel_search_key = "<leader><leader>M",
+diff --git a/nvim/lua/plugin/git/git-conflict.lua b/nvim/lua/plugin/git/git-conflict.lua
+index 9da9350..0d1d79b 100644
+--- a/nvim/lua/plugin/git/git-conflict.lua
++++ b/nvim/lua/plugin/git/git-conflict.lua
+@@ -1,6 +1,6 @@
+ -- Conflict markers as a first-class mode: pick ours/theirs/both/none, jump
+ -- between conflicts, list with :GitConflictListQf.
+--- Loaded on real-file events so non-git sessions stay light.
++-- Loaded on real-file events so conflicts light up as soon as you open a file.
+ return {
+ 	"akinsho/git-conflict.nvim",
+ 	version = "*",
+@@ -22,14 +22,38 @@ return {
+ 		{ "<leader>gxn", "<cmd>GitConflictNextConflict<cr>", desc = "Conflict: next" },
+ 		{ "<leader>gxp", "<cmd>GitConflictPrevConflict<cr>", desc = "Conflict: prev" },
+ 	},
+-	opts = {
+-		default_mappings = false,
+-		default_commands = true,
+-		disable_diagnostics = false,
+-		list_opener = "copen",
+-		highlights = {
+-			incoming = "DiffAdd",
+-			current = "DiffText",
+-		},
+-	},
++	config = function()
++		require("git-conflict").setup({
++			default_mappings = false,
++			default_commands = true,
++			disable_diagnostics = false,
++			list_opener = "copen",
++			highlights = {
++				incoming = "DiffAdd",
++				current = "DiffText",
++			},
++		})
++
++		-- Large-file guard. git-conflict installs a global decoration provider
++		-- whose `on_win` re-scans a conflicted buffer end-to-end (4 regex/line)
++		-- on every changedtick advance — fine for normal files, but on a 20k+
++		-- line file in conflict that is an effectively per-keystroke full-buffer
++		-- scan, and the plugin exposes no size cap. The provider gates each
++		-- buffer through `utils.is_valid_buf(bufnr)` (returning false skips it
++		-- entirely), so we wrap that to also reject oversized buffers. Small and
++		-- mid-size files still light up automatically on open; only very large
++		-- ones opt out of the live conflict decoration.
++		local ok, utils = pcall(require, "git-conflict.utils")
++		if ok and type(utils.is_valid_buf) == "function" then
++			local MAX_CONFLICT_LINES = 12000
++			local base_is_valid_buf = utils.is_valid_buf
++			utils.is_valid_buf = function(bufnr)
++				bufnr = bufnr or 0
++				if vim.api.nvim_buf_is_valid(bufnr) and vim.api.nvim_buf_line_count(bufnr) > MAX_CONFLICT_LINES then
++					return false
++				end
++				return base_is_valid_buf(bufnr)
++			end
++		end
++	end,
+ }
+diff --git a/nvim/lua/plugin/git/gitsigns.lua b/nvim/lua/plugin/git/gitsigns.lua
+index caa881a..8242a44 100644
+--- a/nvim/lua/plugin/git/gitsigns.lua
++++ b/nvim/lua/plugin/git/gitsigns.lua
+@@ -30,7 +30,9 @@ return {
+ 			sign_priority = 6,
+ 			update_debounce = 100,
+ 			status_formatter = nil, -- Use default
+-			max_file_length = 40000,
++			-- gitsigns stops diffing files longer than this. Aligned with the
++			-- bigfile line threshold so oversized files skip diff entirely.
++			max_file_length = 12000,
+ 			preview_config = {
+ 				border = "single",
+ 				style = "minimal",
+@@ -39,7 +41,13 @@ return {
+ 				col = 1,
+ 			},
+ 			on_attach = function(bufnr)
+-				if vim.bo[bufnr].filetype == "bigfile" then
++				-- Disable per-line git blame on large buffers by line count
++				-- rather than the bigfile filetype: current_line_blame spawns a
++				-- git blame on every new cursor line, which is the main
++				-- large-file cost here even when max_file_length still allows
++				-- signs. Line-count keying also covers buffers that never got
++				-- the bigfile filetype.
++				if vim.api.nvim_buf_line_count(bufnr) > 12000 or vim.bo[bufnr].filetype == "bigfile" then
+ 					vim.b[bufnr].gitsigns_current_line_blame = false
+ 				end
+ 			end,
+diff --git a/nvim/lua/plugin/lsp/inlayhints.lua b/nvim/lua/plugin/lsp/inlayhints.lua
+index e01f151..266b96f 100644
+--- a/nvim/lua/plugin/lsp/inlayhints.lua
++++ b/nvim/lua/plugin/lsp/inlayhints.lua
+@@ -3,9 +3,28 @@ return {
+ 	event = "LspAttach",
+ 	dependencies = { "neovim/nvim-lspconfig" },
+ 	config = function()
+-		require("inlay-hints").setup({
++		local inlay_hints = require("inlay-hints")
++		inlay_hints.setup({
+ 			commands = { enable = true }, -- Enable InlayHints commands, include `InlayHintsToggle`, `InlayHintsEnable` and `InlayHintsDisable`
+-			autocmd = { enable = true }, -- Enable the inlay hints on `LspAttach` event
++			-- autocmd auto-enable is off: the plugin's LspAttach handler enables
++			-- hints for the whole buffer with no size cap, and inlay hints re-
++			-- request on every scroll/edit. We attach our own LspAttach that
++			-- gates by line count so large files skip hints (still toggleable
++			-- via :InlayHintsToggle).
++			autocmd = { enable = false },
++		})
++
++		vim.api.nvim_create_autocmd("LspAttach", {
++			group = vim.api.nvim_create_augroup("inlay_hints_guarded", { clear = true }),
++			callback = function(args)
++				if vim.api.nvim_buf_line_count(args.buf) > 12000 or vim.bo[args.buf].filetype == "bigfile" then
++					return
++				end
++				local client = vim.lsp.get_client_by_id(args.data.client_id)
++				if client then
++					inlay_hints.on_attach(client, args.buf)
++				end
++			end,
+ 		})
+ 	end,
+ }
+diff --git a/nvim/lua/plugin/lsp/lsp.lua b/nvim/lua/plugin/lsp/lsp.lua
+index 5e600bf..d4bb906 100644
+--- a/nvim/lua/plugin/lsp/lsp.lua
++++ b/nvim/lua/plugin/lsp/lsp.lua
+@@ -180,20 +180,13 @@ return {
+ 						client.server_capabilities.documentFormattingProvider = false
+ 					end
+ 
+-					if client.server_capabilities.documentHighlightProvider then
+-						local hl_group =
+-							vim.api.nvim_create_augroup("user_lsp_doc_highlight_" .. ev.buf, { clear = true })
+-						vim.api.nvim_create_autocmd("CursorHold", {
+-							group = hl_group,
+-							buffer = ev.buf,
+-							callback = vim.lsp.buf.document_highlight,
+-						})
+-						vim.api.nvim_create_autocmd("CursorMoved", {
+-							group = hl_group,
+-							buffer = ev.buf,
+-							callback = vim.lsp.buf.clear_references,
+-						})
+-					end
++					-- Document-highlight is handled by snacks' `words` module
++					-- (enabled in snacks.lua), which already calls
++					-- vim.lsp.buf.document_highlight() / clear_references() on
++					-- cursor movement (200ms debounce) plus ]]/[[ reference jumps.
++					-- A second CursorHold-driven highlight here just double-
++					-- requests the same references from the server, so it is
++					-- removed to avoid the duplicate work on large buffers.
+ 
+ 					local ok, supported = pcall(client.supports_method, client, "textDocument/codeLens")
+ 					local ft = vim.bo[ev.buf].filetype
+diff --git a/nvim/lua/plugin/lsp/nvim-lint.lua b/nvim/lua/plugin/lsp/nvim-lint.lua
+index 8c6a8b5..2bcae4c 100644
+--- a/nvim/lua/plugin/lsp/nvim-lint.lua
++++ b/nvim/lua/plugin/lsp/nvim-lint.lua
+@@ -37,11 +37,22 @@ return {
+ 			}
+ 
+ 			-- trigger lint
+-			vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
++			--
++			-- InsertLeave dropped: nvim-lint has no debounce and re-lints the
++			-- whole file (+ spawns codespell over the entire buffer) on every
++			-- exit from insert mode, which is a per-edit full-file scan on large
++			-- files. BufWritePost/BufEnter is enough. codespell is also skipped
++			-- on large buffers, where a full-buffer spell scan is costly and low
++			-- value.
++			vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost" }, {
+ 				group = lint_augroup,
+-				callback = function()
++				callback = function(args)
+ 					lint.try_lint()
+-					if vim.fn.executable("codespell") == 1 then
++					if
++						vim.fn.executable("codespell") == 1
++						and vim.api.nvim_buf_line_count(args.buf) <= 12000
++						and vim.bo[args.buf].filetype ~= "bigfile"
++					then
+ 						lint.try_lint("codespell")
+ 					end
+ 				end,
+diff --git a/nvim/lua/plugin/treesitter/nvim-treesitter-context.lua b/nvim/lua/plugin/treesitter/nvim-treesitter-context.lua
+index 01e4d8f..92dd850 100644
+--- a/nvim/lua/plugin/treesitter/nvim-treesitter-context.lua
++++ b/nvim/lua/plugin/treesitter/nvim-treesitter-context.lua
+@@ -4,7 +4,10 @@ return {
+ 	config = function()
+ 		require("treesitter-context").setup({
+ 			enable = true,
+-			max_lines = 0,
++			-- Cap the context window height. 0 = unlimited, which on deeply
++			-- nested code (common in large C files) can push many lines of
++			-- context and recompute them on every cursor move.
++			max_lines = 4,
+ 			min_window_height = 0,
+ 			line_numbers = true,
+ 			multiline_threshold = 10,
+@@ -13,7 +16,10 @@ return {
+ 			separator = nil,
+ 			zindex = 10,
+ 			on_attach = function(buf)
+-				return vim.bo[buf].filetype ~= "bigfile"
++				-- Skip large buffers by line count as well as the bigfile
++				-- filetype: context recomputes by walking the tree upward on
++				-- every CursorMoved.
++				return vim.api.nvim_buf_line_count(buf) <= 12000 and vim.bo[buf].filetype ~= "bigfile"
+ 			end,
+ 		})
+ 	end,
+diff --git a/nvim/lua/plugin/treesitter/nvim-treesitter.lua b/nvim/lua/plugin/treesitter/nvim-treesitter.lua
+index b9c67ed..c0a71a9 100644
+--- a/nvim/lua/plugin/treesitter/nvim-treesitter.lua
++++ b/nvim/lua/plugin/treesitter/nvim-treesitter.lua
+@@ -28,11 +28,19 @@ return {
+ 				"doxygen",
+ 			})
+ 
++			-- Line-count fallback in addition to the bigfile filetype: parsing
++			-- and highlighting a 20k-line tree (and re-parsing incrementally on
++			-- each edit) is a real cost, so skip treesitter for very large
++			-- buffers even if they were not classified as bigfile.
++			local TS_MAX_LINES = 12000
+ 			vim.api.nvim_create_autocmd("FileType", {
+ 				callback = function(args)
+ 					if vim.bo[args.buf].filetype == "bigfile" then
+ 						return
+ 					end
++					if vim.api.nvim_buf_line_count(args.buf) > TS_MAX_LINES then
++						return
++					end
+ 					pcall(vim.treesitter.start)
+ 				end,
+ 			})
+@@ -45,8 +53,14 @@ return {
+ 			})
+ 
+ 			vim.api.nvim_create_autocmd("FileType", {
+-				callback = function()
+-					if vim.bo.filetype ~= "yaml" then
++				callback = function(args)
++					-- Treesitter indentexpr queries the tree on every o/O/=/paste;
++					-- keep the stock indent on very large or bigfile buffers.
++					if
++						vim.bo.filetype ~= "yaml"
++						and vim.bo[args.buf].filetype ~= "bigfile"
++						and vim.api.nvim_buf_line_count(args.buf) <= TS_MAX_LINES
++					then
+ 						vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+ 					end
+ 				end,
+diff --git a/nvim/lua/plugin/ui/lualine.lua b/nvim/lua/plugin/ui/lualine.lua
+index da352f5..5c79811 100644
+--- a/nvim/lua/plugin/ui/lualine.lua
++++ b/nvim/lua/plugin/ui/lualine.lua
+@@ -19,6 +19,14 @@ local function virtlocation()
+ 		local count = 0
+ 		local line_count = end_line - start_line + 1
+ 
++		-- Byte-count is computed by walking every selected line, which runs on
++		-- EVERY statusline redraw (i.e. as the selection grows during a drag).
++		-- For a huge selection that is O(selected lines) per redraw, so above a
++		-- threshold we skip the sum and report just the line count.
++		if line_count > 5000 then
++			return string.format("%d:%d Sel:%d lines", line, vcol, line_count)
++		end
++
+ 		if mode == "V" then
+ 			-- Visual Line Mode
+ 			local lines = vim.fn.getline(start_line, end_line)
+diff --git a/nvim/lua/plugin/ui/neominimap.lua b/nvim/lua/plugin/ui/neominimap.lua
+index 6d3c100..1a97a4a 100644
+--- a/nvim/lua/plugin/ui/neominimap.lua
++++ b/nvim/lua/plugin/ui/neominimap.lua
+@@ -13,6 +13,18 @@ return {
+ 		vim.g.neominimap = {
+ 			auto_enable = true,
+ 
++			-- Line-count guard, independent of the `bigfile` filetype. neominimap
++			-- has no built-in size cap: it reads the WHOLE buffer and runs a
++			-- full-buffer treesitter highlight extraction to build the thumbnail,
++			-- re-running on every (debounced) text change. That cost scales with
++			-- file size, so a big file re-thumbnails thousands of lines on each
++			-- edit. exclude_filetypes catches `bigfile`, but this catches large
++			-- buffers directly (same pattern as beacon.lua) so the minimap never
++			-- generates for them regardless of how they were classified.
++			buf_filter = function(bufnr)
++				return vim.api.nvim_buf_line_count(bufnr) <= 12000
++			end,
++
+ 			-- commit-lens minimap integration: show lens-marked lines in
+ 			-- orange, alongside the built-in git handler. Safe-required so a
+ 			-- missing plugin never breaks minimap startup.
+diff --git a/nvim/lua/plugin/ui/snacks.lua b/nvim/lua/plugin/ui/snacks.lua
+index c6ecd22..67c6695 100644
+--- a/nvim/lua/plugin/ui/snacks.lua
++++ b/nvim/lua/plugin/ui/snacks.lua
+@@ -2,24 +2,6 @@ return {
+ 	"folke/snacks.nvim",
+ 	priority = 1000,
+ 	lazy = false,
+-	init = function()
+-		vim.filetype.add({
+-			pattern = {
+-				[".*"] = {
+-					function(path, buf)
+-						if not buf or vim.bo[buf].filetype == "bigfile" then
+-							return
+-						end
+-						local line_count = vim.api.nvim_buf_line_count(buf)
+-						if line_count > 2048 then
+-							return "bigfile"
+-						end
+-					end,
+-					{ priority = -math.huge },
+-				},
+-			},
+-		})
+-	end,
+ 	---@type snacks.Config
+ 	opts = {
+ 		-- your configuration comes here
+@@ -145,6 +127,62 @@ return {
+ 		local Snacks = require("snacks")
+ 		Snacks.setup(opts)
+ 
++		-- Big-file detection. Snacks' own bigfile module registers a `.*`
++		-- filetype detector on the first BufReadPre that keys ONLY off byte
++		-- size (opts.bigfile.size). But `vim.filetype.add` maps every `.*`
++		-- pattern to the SAME slot (`pattern[''] ['^.*$']`), so the last
++		-- registration wins outright — the two detectors do NOT coexist.
++		-- A 20k-line Qualcomm source/header under ~1.5MB therefore stays
++		-- `filetype=c` and every `== "bigfile"` guard downstream misfires.
++		--
++		-- Re-register a single unified detector that folds Snacks' byte /
++		-- minified-line heuristics back in AND adds a line-count trigger.
++		-- It must run AFTER Snacks' own registration to win the slot, so we
++		-- hook BufReadPre ourselves (Snacks' is `once`; a plain autocmd that
++		-- re-adds on every BufReadPre is always the most recent registrant).
++		-- Detection-time `nvim_buf_line_count` sees the real line count and a
++		-- non-negative priority beats the extension match, so the buffer is
++		-- `bigfile` from its very first FileType event — treesitter/regex
++		-- syntax never start on it (verified empirically).
++		local BIGFILE_LINES = 12000 -- ~ the perf cliff for our C/C++ files
++		local bigfile_size = (opts.bigfile and opts.bigfile.size) or (1.5 * 1024 * 1024)
++		local bigfile_line_length = (opts.bigfile and opts.bigfile.line_length) or 1000
++		local function register_bigfile_detector()
++			vim.filetype.add({
++				pattern = {
++					[".*"] = {
++						function(path, buf)
++							if not path or not buf or vim.bo[buf].filetype == "bigfile" then
++								return
++							end
++							if path ~= vim.fs.normalize(vim.api.nvim_buf_get_name(buf)) then
++								return
++							end
++							local lines = vim.api.nvim_buf_line_count(buf)
++							if lines > BIGFILE_LINES then
++								return "bigfile"
++							end
++							local size = vim.fn.getfsize(path)
++							if size <= 0 then
++								return
++							end
++							if size > bigfile_size then
++								return "bigfile"
++							end
++							-- minified heuristic (matches Snacks): huge average line length
++							return (size - lines) / lines > bigfile_line_length and "bigfile" or nil
++						end,
++						{ priority = 100 },
++					},
++				},
++			})
++		end
++		register_bigfile_detector()
++		vim.api.nvim_create_autocmd("BufReadPre", {
++			group = vim.api.nvim_create_augroup("bigfile_detector", { clear = true }),
++			callback = register_bigfile_detector,
++		})
++
+ 		-- Toggle framework: a set of UI/option toggles under <leader>u.
+ 		-- Each :map() creates the keymap; which-key picks up the names.
+ 		Snacks.toggle.option("spell", { name = "Spelling" }):map("<leader>us")
+diff --git a/nvim/lua/syntax/c.lua b/nvim/lua/syntax/c.lua
+index a579ade..181f8fd 100644
+--- a/nvim/lua/syntax/c.lua
++++ b/nvim/lua/syntax/c.lua
+@@ -123,7 +123,24 @@ function M.setup()
+ 		group = group,
+ 		pattern = { "c", "cpp" },
+ 		callback = function(args)
+-			M.apply(args.buf)
++			-- These regex :syn items are a FALLBACK for when treesitter is not
++			-- highlighting the buffer. When the ts highlighter is active it
++			-- disables regex syntax (vim.bo.syntax=""), wiping everything apply()
++			-- adds — so running apply() then would be pure wasted work on every
++			-- C/C++ file open. Defer to after this FileType tick (treesitter's
++			-- own FileType autocmd starts the highlighter in the same tick) and
++			-- only apply if the highlighter did NOT come up for this buffer.
++			vim.schedule(function()
++				local buf = args.buf
++				if not vim.api.nvim_buf_is_valid(buf) then
++					return
++				end
++				local ts_active = vim.treesitter.highlighter.active
++					and vim.treesitter.highlighter.active[buf] ~= nil
++				if not ts_active then
++					M.apply(buf)
++				end
++			end)
+ 		end,
+ 	})
+ end
+diff --git a/nvim/lua/syntax/cpp.lua b/nvim/lua/syntax/cpp.lua
+index 9f0745d..315b00b 100644
+--- a/nvim/lua/syntax/cpp.lua
++++ b/nvim/lua/syntax/cpp.lua
+@@ -293,7 +293,20 @@ function M.setup()
+ 		group = group,
+ 		pattern = { "cpp" },
+ 		callback = function(args)
+-			M.apply(args.buf)
++			-- Fallback only: skip when treesitter is highlighting this buffer
++			-- (it disables regex syntax, so apply() would be wasted). See the
++			-- matching note in syntax/c.lua.
++			vim.schedule(function()
++				local buf = args.buf
++				if not vim.api.nvim_buf_is_valid(buf) then
++					return
++				end
++				local ts_active = vim.treesitter.highlighter.active
++					and vim.treesitter.highlighter.active[buf] ~= nil
++				if not ts_active then
++					M.apply(buf)
++				end
++			end)
+ 		end,
+ 	})
+ end
+-- 
+2.34.1
+
