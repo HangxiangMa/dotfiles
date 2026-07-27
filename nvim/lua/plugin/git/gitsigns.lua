@@ -30,7 +30,9 @@ return {
 			sign_priority = 6,
 			update_debounce = 100,
 			status_formatter = nil, -- Use default
-			max_file_length = 40000,
+			-- gitsigns stops diffing files longer than this. Aligned with the
+			-- bigfile line threshold so oversized files skip diff entirely.
+			max_file_length = 12000,
 			preview_config = {
 				border = "single",
 				style = "minimal",
@@ -39,7 +41,13 @@ return {
 				col = 1,
 			},
 			on_attach = function(bufnr)
-				if vim.bo[bufnr].filetype == "bigfile" then
+				-- Disable per-line git blame on large buffers by line count
+				-- rather than the bigfile filetype: current_line_blame spawns a
+				-- git blame on every new cursor line, which is the main
+				-- large-file cost here even when max_file_length still allows
+				-- signs. Line-count keying also covers buffers that never got
+				-- the bigfile filetype.
+				if vim.api.nvim_buf_line_count(bufnr) > 12000 or vim.bo[bufnr].filetype == "bigfile" then
 					vim.b[bufnr].gitsigns_current_line_blame = false
 				end
 			end,

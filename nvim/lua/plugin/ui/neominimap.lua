@@ -13,6 +13,18 @@ return {
 		vim.g.neominimap = {
 			auto_enable = true,
 
+			-- Line-count guard, independent of the `bigfile` filetype. neominimap
+			-- has no built-in size cap: it reads the WHOLE buffer and runs a
+			-- full-buffer treesitter highlight extraction to build the thumbnail,
+			-- re-running on every (debounced) text change. That cost scales with
+			-- file size, so a big file re-thumbnails thousands of lines on each
+			-- edit. exclude_filetypes catches `bigfile`, but this catches large
+			-- buffers directly (same pattern as beacon.lua) so the minimap never
+			-- generates for them regardless of how they were classified.
+			buf_filter = function(bufnr)
+				return vim.api.nvim_buf_line_count(bufnr) <= 12000
+			end,
+
 			-- commit-lens minimap integration: show lens-marked lines in
 			-- orange, alongside the built-in git handler. Safe-required so a
 			-- missing plugin never breaks minimap startup.

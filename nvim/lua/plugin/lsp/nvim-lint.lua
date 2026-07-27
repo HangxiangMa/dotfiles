@@ -37,11 +37,22 @@ return {
 			}
 
 			-- trigger lint
-			vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "InsertLeave" }, {
+			--
+			-- InsertLeave dropped: nvim-lint has no debounce and re-lints the
+			-- whole file (+ spawns codespell over the entire buffer) on every
+			-- exit from insert mode, which is a per-edit full-file scan on large
+			-- files. BufWritePost/BufEnter is enough. codespell is also skipped
+			-- on large buffers, where a full-buffer spell scan is costly and low
+			-- value.
+			vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost" }, {
 				group = lint_augroup,
-				callback = function()
+				callback = function(args)
 					lint.try_lint()
-					if vim.fn.executable("codespell") == 1 then
+					if
+						vim.fn.executable("codespell") == 1
+						and vim.api.nvim_buf_line_count(args.buf) <= 12000
+						and vim.bo[args.buf].filetype ~= "bigfile"
+					then
 						lint.try_lint("codespell")
 					end
 				end,
