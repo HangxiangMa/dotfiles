@@ -112,14 +112,15 @@ echo "test" | clipboard-provider copy
 
 ```text
 nvim/
-├── init.lua                Entry point; loads lazy, core options, autocmds and keymaps.
+├── init.lua                Entry point; loads lazy-init, autocmds, keymaps, tmux capture and C/C++ syntax setup.
 ├── lua/
 │   ├── lazy-init.lua       Bootstraps lazy.nvim and imports plugin specs.
 │   ├── core/               Editor-level config, independent of any plugin.
 │   │   ├── options.lua     vim.opt / vim.g settings.
 │   │   ├── keybindings.lua Global keymaps + shared helper tables.
 │   │   ├── autocmds.lua    Generic autocmds (yank highlight, LSP attach, etc.).
-│   │   ├── handlers.lua    Shared LSP handlers / capabilities.
+│   │   ├── node-path.lua   Pins a modern node on PATH before LSP servers spawn.
+│   │   ├── tmux-capture.lua Capture tmux pane output into a buffer.
 │   │   └── crisp.lua       Small utility helpers (notify, prequire, big-file check).
 │   ├── lib/                Reusable Lua modules that are not plugin specs.
 │   │   └── inactive_regions.lua  clangd `textDocument/inactiveRegions` renderer.
@@ -136,12 +137,15 @@ nvim/
 │       │                   signature, inlay hints) plus per-server configs
 │       │                   under `lsp/server/`.
 │       ├── treesitter/     nvim-treesitter and treesitter-context.
-│       ├── lang/           Language-specific tooling: rust, python, markdown.
+│       ├── lang/           Language-specific tooling: rust, python, markdown, leetcode.
 │       ├── debug/          DAP and neotest.
-│       ├── git/            gitsigns, diffview, lazygit.
+│       ├── git/            gitsigns, diffview, git-conflict, commit-lens.
 │       ├── theme/          Colorschemes (one is enabled, others kept disabled).
 │       └── tools/          Standalone utilities: toggleterm, cscope,
-│                           icon-picker, hardtime.
+│                           icon-picker, hardtime, vim-slime.
+├── plugins/                Repo-local (vendored) plugins loaded as lazy `dir` specs.
+│   ├── commit-lens/        Blame-highlight lines belonging to chosen commits (+ tests).
+│   └── virtcolumn/         Vendored virtcolumn.nvim with formatter-config column detection.
 ├── after/ftplugin/         Per-filetype tweaks loaded after default ftplugins.
 ├── assets/                 Screenshots used by this README.
 └── script/                 Install / requirements / clipboard helper scripts.
@@ -155,3 +159,8 @@ auto-discovers every `*.lua` under `lua/plugin/<group>/` because of the
 Internal helpers that are *not* lazy specs (e.g. shared modules required by
 several plugin files) belong in `lua/lib/` so lazy does not try to import
 them as plugin specs.
+
+Full plugins developed in-repo live under `plugins/<name>/` (each a normal
+Lua rockspec-free plugin tree) and are wired in through a lazy `dir = ...`
+spec in the matching `lua/plugin/<group>/` file — for example
+`plugins/commit-lens/` is loaded by `lua/plugin/git/commit-lens.lua`.
