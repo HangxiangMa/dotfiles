@@ -233,12 +233,38 @@ local function parse_items(cc)
 	return items
 end
 
----@param line string
----@param col integer byte 0-indexed
+-- Return true if display cell `col` of `line` is "empty" -- i.e. the guide can
+-- be drawn there without covering real text. That is the case when `col` is
+-- past the line's rendered width or sits on whitespace. Unlike a byte-offset
+-- check, this expands tabs to the tabstop and counts wide (e.g. CJK) characters
+-- as their real 2-cell width, so the guide (which is placed by SCREEN column)
+-- is never laid on top of a real glyph that a byte index would have missed.
+--
+-- This is the fix for the truncation of tab-indented lines and lines with CJK
+-- text: the guide's extmark occupies a screen cell and always wins that cell
+-- over the buffer's real text, so the only way not to truncate is to not draw
+-- when a real glyph already lives there.
+---@param line string  the (tab-containing) rendered line
+---@param col integer  1-indexed screen/display column of the guide
+---@param tabstop integer  buffer 'tabstop' (>= 1)
 ---@return boolean
-local function is_empty_at_col(line, col)
-	local ok, char = pcall(fn.strpart, line, col, 1)
-	return ok and char == " "
+local function is_display_cell_empty(line, col, tabstop)
+	local dcol = 0 -- display cells consumed so far; next cell is dcol + 1
+	for _, ch in ipairs(fn.split(line, "\\zs")) do
+		local w
+		if ch == "\t" then
+			w = tabstop - (dcol % tabstop) -- tab advances to the next tabstop
+		else
+			w = fn.strwidth(ch) -- 1 for ASCII, 2 for wide (CJK) chars
+		end
+		if col <= dcol + w then
+			-- `col` falls within this character's cells [dcol+1, dcol+w].
+			return ch == "\t" or ch == " "
+		end
+		dcol = dcol + w
+	end
+	-- `col` is past the end of the rendered line -> nothing there.
+	return true
 end
 
 local function get_buf_lines(buf, start, end_)
@@ -325,6 +351,10 @@ local function _refresh()
 	local virt_char = vim.g.virtcolumn_char or M.config.char
 	local virt_priority = vim.g.virtcolumn_priority or M.config.priority
 
+	local tabstop = vim.bo[curbuf].tabstop
+	if tabstop < 1 then
+		tabstop = 8
+	end
 	local leftcol = ctx.leftcol
 	local line, lnum
 	for idx = 1, #lines do
@@ -332,7 +362,10 @@ local function _refresh()
 		lnum = idx - 1 + offset
 		api.nvim_buf_clear_namespace(curbuf, NS, lnum, lnum + 1)
 		for _, item in ipairs(items) do
-			if #line < item or is_empty_at_col(line, item - 1) then
+			-- `item` is a 1-indexed display column. Only draw the guide when that
+			-- display cell holds no real glyph; a byte-index check would miss
+			-- tabs and wide (CJK) chars and lay the guide on top of real code.
+			if is_display_cell_empty(line, item, tabstop) then
 				api.nvim_buf_set_extmark(curbuf, NS, lnum, 0, {
 					virt_text = { { virt_char, "VirtColumn" } },
 					hl_mode = "combine",
