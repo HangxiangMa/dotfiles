@@ -142,7 +142,9 @@ nvim/
 │       ├── git/            gitsigns, diffview, git-conflict, commit-lens.
 │       ├── theme/          Colorschemes (one is enabled, others kept disabled).
 │       └── tools/          Standalone utilities: toggleterm, cscope,
-│                           icon-picker, hardtime, vim-slime.
+│                           icon-picker, hardtime, vim-slime, codecompanion
+│                           (AI chat/actions, wired to internal gateways via
+│                           env vars — see plugin/tools/codecompanion.lua).
 ├── plugins/                Repo-local (vendored) plugins loaded as lazy `dir` specs.
 │   ├── commit-lens/        Blame-highlight lines belonging to chosen commits (+ tests).
 │   └── virtcolumn/         Vendored virtcolumn.nvim with formatter-config column detection.
