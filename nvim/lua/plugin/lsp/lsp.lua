@@ -180,13 +180,20 @@ return {
 						client.server_capabilities.documentFormattingProvider = false
 					end
 
-					-- Document-highlight is handled by snacks' `words` module
-					-- (enabled in snacks.lua), which already calls
-					-- vim.lsp.buf.document_highlight() / clear_references() on
-					-- cursor movement (200ms debounce) plus ]]/[[ reference jumps.
-					-- A second CursorHold-driven highlight here just double-
-					-- requests the same references from the server, so it is
-					-- removed to avoid the duplicate work on large buffers.
+					if client.server_capabilities.documentHighlightProvider then
+						local hl_group =
+							vim.api.nvim_create_augroup("user_lsp_doc_highlight_" .. ev.buf, { clear = true })
+						vim.api.nvim_create_autocmd("CursorHold", {
+							group = hl_group,
+							buffer = ev.buf,
+							callback = vim.lsp.buf.document_highlight,
+						})
+						vim.api.nvim_create_autocmd("CursorMoved", {
+							group = hl_group,
+							buffer = ev.buf,
+							callback = vim.lsp.buf.clear_references,
+						})
+					end
 
 					local ok, supported = pcall(client.supports_method, client, "textDocument/codeLens")
 					local ft = vim.bo[ev.buf].filetype

@@ -561,35 +561,22 @@ function H.process_regions_coroutine(bufnr, filename, regions, start_time, rende
 
 		local highlights_batch = {}
 
-		-- Clamp the treesitter iteration to the intersection of the region and
-		-- the viewport. A single inactive region can span many thousands of
-		-- lines (e.g. a platform `#ifdef` guard wrapping most of a file); on a
-		-- big file only ~1 screen of it is visible, so iterating the region's
-		-- full line span is the dominant cost even though the region-level skip
-		-- above already dropped fully-offscreen regions. When render_top is nil
-		-- (small file, render-all) these fall back to the region bounds.
-		local iter_top = region.start.line
-		local iter_bot = region["end"].line
-		if render_top then
-			iter_top = math.max(iter_top, render_top)
-			iter_bot = math.min(iter_bot, render_bot)
-		end
-
-		-- Iterates over Treesitter captures within the clamped line range.
-		-- `trees[1]:root()` gets the root node of the primary syntax tree.
+		-- Iterates over Treesitter captures within the current region's line range.
+		-- `trees[1]:root()` gets the root node of the primary syntax tree. The
+		-- iteration is constrained to lines spanning the inactive region.
 		for id, node in
 			query:iter_captures(
 				trees[1]:root(),
 				bufnr,
-				iter_top, -- Start line for iteration (0-indexed).
-				iter_bot + 1 -- End line for iteration (exclusive, 0-indexed).
+				region.start.line, -- Start line for iteration (0-indexed).
+				region["end"].line + 1 -- End line for iteration (exclusive, 0-indexed).
 			)
 		do
 			local start_row, start_col, end_row, end_col = node:range()
 
 			-- Filters nodes to include only those strictly within the inactive
-			-- region's boundaries AND (on big files) the viewport window.
-			if H.is_node_in_region(start_row, end_row, region, render_top, render_bot) then
+			-- region's boundaries.
+			if H.is_node_in_region(start_row, end_row, region) then
 				-- Gets the name of the capture (e.g., "comment", "keyword").
 				local capture_name = query.captures[id]
 				if capture_name then
@@ -655,24 +642,12 @@ end
 ---@param start_row integer Node start row
 ---@param end_row integer Node end row
 ---@param region InactiveRegion Region to check against
----@param render_top integer|nil Viewport top boundary (0-indexed), nil = no viewport clamp
----@param render_bot integer|nil Viewport bottom boundary (0-indexed), nil = no viewport clamp
 ---@return boolean
-function H.is_node_in_region(start_row, end_row, region, render_top, render_bot)
+function H.is_node_in_region(start_row, end_row, region)
 	-- A node is considered within the region if its start row is not before the
 	-- region's start and its end row is not after the region's end. Note that we
 	-- assumes that regions are defined by line numbers.
-	if not (start_row >= region.start.line and end_row <= region["end"].line) then
-		return false
-	end
-	-- On big files, also require the node to overlap the viewport window, so a
-	-- region that merely intersects the viewport does not get highlighted along
-	-- its full off-screen span. (The clear/redraw on scroll only covers the
-	-- viewport range, so highlighting outside it would also leak stale marks.)
-	if render_top then
-		return end_row >= render_top and start_row <= render_bot
-	end
-	return true
+	return start_row >= region.start.line and end_row <= region["end"].line
 end
 
 ---Apply a batch of highlights efficiently
