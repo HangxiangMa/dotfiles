@@ -1,6 +1,9 @@
 # Claude Code local settings (machine-specific paths, permissions)
 .claude/
 
+# pi coding agent local session/task state (machine-specific)
+.pi/
+
 # Editor swap / backup files
 *.swp
 *.swo
