@@ -9,6 +9,18 @@
 
 local M = {}
 
+-- Same big-buffer cutoff used across the rest of inactive_regions / the perf
+-- patch (treesitter, gitsigns, inlay-hints, ...). `clear_temp_highlights()`
+-- below does an unbounded `nvim_buf_get_extmarks(bufnr, D.ns, 0, -1, ...)` — a
+-- full-buffer scan of every extmark in the shared inactive_regions namespace,
+-- whose count scales with how much of the file is inactive (#ifdef-disabled)
+-- — and with the default `typing_debounce_ms = 0` that runs on effectively
+-- every keystroke typed inside an inactive region. `live_typing` is opt-in and
+-- off by default, but nothing else in this module caps it by file size, so a
+-- large file opts in to a per-keystroke full-buffer-namespace scan the moment
+-- it's enabled.
+local LIVE_TYPING_MAX_LINES = 12000
+
 ---@class InactiveRegionsLiveTypingDeps
 ---@field config table          -- shared config table (read-only from here)
 ---@field state  table          -- shared _state table (we mutate live_typing_state)
@@ -334,6 +346,10 @@ local function apply_live_typing_highlights(bufnr)
 end
 
 local function handle_live_typing(bufnr)
+	if vim.api.nvim_buf_line_count(bufnr) > LIVE_TYPING_MAX_LINES then
+		return
+	end
+
 	local lstate = D.state.live_typing_state
 
 	local existing_timer = lstate.typing_timers[bufnr]
