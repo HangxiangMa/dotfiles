@@ -123,24 +123,7 @@ function M.setup()
 		group = group,
 		pattern = { "c", "cpp" },
 		callback = function(args)
-			-- These regex :syn items are a FALLBACK for when treesitter is not
-			-- highlighting the buffer. When the ts highlighter is active it
-			-- disables regex syntax (vim.bo.syntax=""), wiping everything apply()
-			-- adds — so running apply() then would be pure wasted work on every
-			-- C/C++ file open. Defer to after this FileType tick (treesitter's
-			-- own FileType autocmd starts the highlighter in the same tick) and
-			-- only apply if the highlighter did NOT come up for this buffer.
-			vim.schedule(function()
-				local buf = args.buf
-				if not vim.api.nvim_buf_is_valid(buf) then
-					return
-				end
-				local ts_active = vim.treesitter.highlighter.active
-					and vim.treesitter.highlighter.active[buf] ~= nil
-				if not ts_active then
-					M.apply(buf)
-				end
-			end)
+			M.apply(args.buf)
 		end,
 	})
 end

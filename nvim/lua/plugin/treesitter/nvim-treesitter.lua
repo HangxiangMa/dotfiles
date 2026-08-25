@@ -28,17 +28,9 @@ return {
 				"doxygen",
 			})
 
-			-- Line-count fallback in addition to the bigfile filetype: parsing
-			-- and highlighting a 20k-line tree (and re-parsing incrementally on
-			-- each edit) is a real cost, so skip treesitter for very large
-			-- buffers even if they were not classified as bigfile.
-			local TS_MAX_LINES = 12000
 			vim.api.nvim_create_autocmd("FileType", {
 				callback = function(args)
 					if vim.bo[args.buf].filetype == "bigfile" then
-						return
-					end
-					if vim.api.nvim_buf_line_count(args.buf) > TS_MAX_LINES then
 						return
 					end
 					pcall(vim.treesitter.start)
@@ -53,14 +45,8 @@ return {
 			})
 
 			vim.api.nvim_create_autocmd("FileType", {
-				callback = function(args)
-					-- Treesitter indentexpr queries the tree on every o/O/=/paste;
-					-- keep the stock indent on very large or bigfile buffers.
-					if
-						vim.bo.filetype ~= "yaml"
-						and vim.bo[args.buf].filetype ~= "bigfile"
-						and vim.api.nvim_buf_line_count(args.buf) <= TS_MAX_LINES
-					then
+				callback = function()
+					if vim.bo.filetype ~= "yaml" then
 						vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
 					end
 				end,

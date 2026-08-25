@@ -19,14 +19,6 @@ local function virtlocation()
 		local count = 0
 		local line_count = end_line - start_line + 1
 
-		-- Byte-count is computed by walking every selected line, which runs on
-		-- EVERY statusline redraw (i.e. as the selection grows during a drag).
-		-- For a huge selection that is O(selected lines) per redraw, so above a
-		-- threshold we skip the sum and report just the line count.
-		if line_count > 5000 then
-			return string.format("%d:%d Sel:%d lines", line, vcol, line_count)
-		end
-
 		if mode == "V" then
 			-- Visual Line Mode
 			local lines = vim.fn.getline(start_line, end_line)

@@ -2,6 +2,24 @@ return {
 	"folke/snacks.nvim",
 	priority = 1000,
 	lazy = false,
+	init = function()
+		vim.filetype.add({
+			pattern = {
+				[".*"] = {
+					function(path, buf)
+						if not buf or vim.bo[buf].filetype == "bigfile" then
+							return
+						end
+						local line_count = vim.api.nvim_buf_line_count(buf)
+						if line_count > 2048 then
+							return "bigfile"
+						end
+					end,
+					{ priority = -math.huge },
+				},
+			},
+		})
+	end,
 	---@type snacks.Config
 	opts = {
 		-- your configuration comes here
@@ -126,62 +144,6 @@ return {
 	config = function(_, opts)
 		local Snacks = require("snacks")
 		Snacks.setup(opts)
-
-		-- Big-file detection. Snacks' own bigfile module registers a `.*`
-		-- filetype detector on the first BufReadPre that keys ONLY off byte
-		-- size (opts.bigfile.size). But `vim.filetype.add` maps every `.*`
-		-- pattern to the SAME slot (`pattern[''] ['^.*$']`), so the last
-		-- registration wins outright — the two detectors do NOT coexist.
-		-- A 20k-line Qualcomm source/header under ~1.5MB therefore stays
-		-- `filetype=c` and every `== "bigfile"` guard downstream misfires.
-		--
-		-- Re-register a single unified detector that folds Snacks' byte /
-		-- minified-line heuristics back in AND adds a line-count trigger.
-		-- It must run AFTER Snacks' own registration to win the slot, so we
-		-- hook BufReadPre ourselves (Snacks' is `once`; a plain autocmd that
-		-- re-adds on every BufReadPre is always the most recent registrant).
-		-- Detection-time `nvim_buf_line_count` sees the real line count and a
-		-- non-negative priority beats the extension match, so the buffer is
-		-- `bigfile` from its very first FileType event — treesitter/regex
-		-- syntax never start on it (verified empirically).
-		local BIGFILE_LINES = 12000 -- ~ the perf cliff for our C/C++ files
-		local bigfile_size = (opts.bigfile and opts.bigfile.size) or (1.5 * 1024 * 1024)
-		local bigfile_line_length = (opts.bigfile and opts.bigfile.line_length) or 1000
-		local function register_bigfile_detector()
-			vim.filetype.add({
-				pattern = {
-					[".*"] = {
-						function(path, buf)
-							if not path or not buf or vim.bo[buf].filetype == "bigfile" then
-								return
-							end
-							if path ~= vim.fs.normalize(vim.api.nvim_buf_get_name(buf)) then
-								return
-							end
-							local lines = vim.api.nvim_buf_line_count(buf)
-							if lines > BIGFILE_LINES then
-								return "bigfile"
-							end
-							local size = vim.fn.getfsize(path)
-							if size <= 0 then
-								return
-							end
-							if size > bigfile_size then
-								return "bigfile"
-							end
-							-- minified heuristic (matches Snacks): huge average line length
-							return (size - lines) / lines > bigfile_line_length and "bigfile" or nil
-						end,
-						{ priority = 100 },
-					},
-				},
-			})
-		end
-		register_bigfile_detector()
-		vim.api.nvim_create_autocmd("BufReadPre", {
-			group = vim.api.nvim_create_augroup("bigfile_detector", { clear = true }),
-			callback = register_bigfile_detector,
-		})
 
 		-- Toggle framework: a set of UI/option toggles under <leader>u.
 		-- Each :map() creates the keymap; which-key picks up the names.

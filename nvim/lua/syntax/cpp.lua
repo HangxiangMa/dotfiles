@@ -293,20 +293,7 @@ function M.setup()
 		group = group,
 		pattern = { "cpp" },
 		callback = function(args)
-			-- Fallback only: skip when treesitter is highlighting this buffer
-			-- (it disables regex syntax, so apply() would be wasted). See the
-			-- matching note in syntax/c.lua.
-			vim.schedule(function()
-				local buf = args.buf
-				if not vim.api.nvim_buf_is_valid(buf) then
-					return
-				end
-				local ts_active = vim.treesitter.highlighter.active
-					and vim.treesitter.highlighter.active[buf] ~= nil
-				if not ts_active then
-					M.apply(buf)
-				end
-			end)
+			M.apply(args.buf)
 		end,
 	})
 end
