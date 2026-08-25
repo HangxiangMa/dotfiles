@@ -32,13 +32,9 @@ keymap.set("v", ">", ">gv", opts)
 keymap.set("v", "J", ":move '>+1<CR>gv-gv", opts)
 keymap.set("v", "K", ":move '<-2<CR>gv-gv", opts)
 
--- control window left/right size
-keymap.set("n", "<C-Left>", ":vertical resize +2<CR>", opts)
-keymap.set("n", "<C-Right>", ":vertical resize -2<CR>", opts)
-
--- control window up/down size
-keymap.set("n", "<C-Down>", ":resize +2<CR>", opts)
-keymap.set("n", "<C-Up>", ":resize -2<CR>", opts)
+-- Window resize (<C-Left/Right/Up/Down>) and pane navigation (<C-hjkl>) now
+-- live in plugin/finder/navigation.lua's smart-splits.nvim spec, so the same
+-- keys also resize/navigate across tmux panes, not just nvim splits.
 
 -- equivalent scale: <C-w>=
 
