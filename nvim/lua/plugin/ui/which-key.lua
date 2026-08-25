@@ -361,6 +361,10 @@ return {
 			{ "<leader>sL", desc = "Session: restore last" },
 			{ "<leader>sd", desc = "Session: stop saving" },
 
+			-- AI (codecompanion.nvim) — keys themselves are registered lazily by
+			-- plugin/tools/codecompanion.lua; this just labels the group.
+			{ "<leader>z", group = "AI" },
+
 			-- Yank ring (yanky.nvim)
 			{ "<leader>y", group = "Yank" },
 			{ "<leader>yp", desc = "Yank History" },
