@@ -68,23 +68,39 @@ return {
 			})
 		end,
 	},
-	-- tmux
+	-- Split/pane navigation + resizing, both inside nvim and across tmux panes.
+	-- Superset of vim-tmux-navigator: same <C-hjkl> pane navigation (tmux.conf's
+	-- TPM plugin + its no-TPM fallback both just forward the raw <C-hjkl> press
+	-- into whatever looks vim-like in the pane, so they're agnostic to which
+	-- nvim-side plugin owns those keymaps — no tmux.conf changes needed here),
+	-- plus directional resize, replacing the hand-written <C-Left/Right/Up/Down>
+	-- `:resize` keymaps that used to live in core/keybindings.lua.
+	--
+	-- Note: vim-tmux-navigator's `<C-\>` "jump to previous tmux pane" has no
+	-- equivalent here — smart-splits has no "previous pane" concept, so that
+	-- one shortcut is dropped rather than replaced.
 	{
-		"christoomey/vim-tmux-navigator",
-		cmd = {
-			"TmuxNavigateLeft",
-			"TmuxNavigateDown",
-			"TmuxNavigateUp",
-			"TmuxNavigateRight",
-			"TmuxNavigatePrevious",
-			"TmuxNavigatorProcessList",
-		},
+		"mrjones2014/smart-splits.nvim",
 		keys = {
-			{ "<c-h>", "<cmd><C-U>TmuxNavigateLeft<cr>" },
-			{ "<c-j>", "<cmd><C-U>TmuxNavigateDown<cr>" },
-			{ "<c-k>", "<cmd><C-U>TmuxNavigateUp<cr>" },
-			{ "<c-l>", "<cmd><C-U>TmuxNavigateRight<cr>" },
-			{ "<c-\\>", "<cmd><C-U>TmuxNavigatePrevious<cr>" },
+			{ "<C-h>", function() require("smart-splits").move_cursor_left() end, desc = "Move to left split/pane" },
+			{ "<C-j>", function() require("smart-splits").move_cursor_down() end, desc = "Move to below split/pane" },
+			{ "<C-k>", function() require("smart-splits").move_cursor_up() end, desc = "Move to above split/pane" },
+			{ "<C-l>", function() require("smart-splits").move_cursor_right() end, desc = "Move to right split/pane" },
+			{ "<C-Left>", function() require("smart-splits").resize_left() end, desc = "Resize split left" },
+			{ "<C-Right>", function() require("smart-splits").resize_right() end, desc = "Resize split right" },
+			{ "<C-Up>", function() require("smart-splits").resize_up() end, desc = "Resize split up" },
+			{ "<C-Down>", function() require("smart-splits").resize_down() end, desc = "Resize split down" },
 		},
+		config = function()
+			require("smart-splits").setup({
+				-- Match the +2/-2 columns\lines the old hand-written :resize keymaps used.
+				default_amount = 2,
+				ignored_buftypes = { "nofile", "quickfix", "prompt" },
+				ignored_filetypes = { "NvimTree" },
+				-- At an edge split, moving/resizing further in that direction forwards
+				-- to the adjacent tmux pane instead of no-op'ing.
+				multiplexer_integration = "tmux",
+			})
+		end,
 	},
 }
