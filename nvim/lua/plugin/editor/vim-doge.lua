@@ -11,9 +11,7 @@ return {
 		{ "<S-TAB>", "<Plug>(doge-comment-jump-backward)", mode = { "n", "x" } },
 	},
 	cmd = { "DogeGenerate", "DogeCreateDocStandard" },
-	build = function()
-		vim.fn["doge#install"]()
-	end,
+	build = ":call doge#install()",
 	init = function()
 		vim.g.doge_enable_mappings = 0
 		vim.g.doge_mapping = "gDt"
