@@ -28,9 +28,13 @@ return {
 				"doxygen",
 			})
 
+			local ts_skip_filetypes = {
+				bigfile = true,
+				NvimTree = true,
+			}
 			vim.api.nvim_create_autocmd("FileType", {
 				callback = function(args)
-					if vim.bo[args.buf].filetype == "bigfile" then
+					if ts_skip_filetypes[vim.bo[args.buf].filetype] then
 						return
 					end
 					pcall(vim.treesitter.start)
