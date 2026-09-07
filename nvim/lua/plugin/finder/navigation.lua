@@ -1,3 +1,64 @@
+local uv = vim.uv or vim.loop
+
+-- nvim-tree creates one libuv fs-event watcher per directory. Android source
+-- trees can contain more directories than the host's inotify quota, making
+-- every failed watcher start emit another notification. Detect the source
+-- root without walking it so we can keep the tree usable but skip watchers.
+local function is_directory(path)
+	local stat = uv.fs_stat(path)
+	return stat and stat.type == "directory"
+end
+
+local function normalize_path(path)
+	if not path or path == "" then
+		return nil
+	end
+
+	local normalized = vim.fn.resolve(vim.fn.fnamemodify(path, ":p"))
+	if normalized ~= "/" then
+		normalized = normalized:gsub("/+$", "")
+	end
+	return normalized
+end
+
+local function find_android_source_root(path)
+	local candidate = normalize_path(path)
+	if not candidate or not is_directory(candidate) then
+		return nil
+	end
+
+	-- Check a few ancestors so opening a directory below the checkout still
+	-- gets the same protection. No recursive filesystem scan is performed.
+	for _ = 1, 8 do
+		if is_directory(candidate .. "/.repo")
+			and is_directory(candidate .. "/build")
+			and is_directory(candidate .. "/vendor")
+		then
+			return candidate
+		end
+
+		local parent = normalize_path(candidate .. "/..")
+		if not parent or parent == candidate then
+			break
+		end
+		candidate = parent
+	end
+end
+
+local function launch_directory()
+	local argv = vim.fn.argv()
+	if #argv == 1 then
+		local stat = uv.fs_stat(argv[1])
+		if stat and stat.type == "directory" then
+			return argv[1]
+		end
+	end
+	return vim.fn.getcwd()
+end
+
+local android_source_root = find_android_source_root(launch_directory())
+local large_source_tree = android_source_root ~= nil
+
 return {
 	-- nvim tree
 	{
@@ -22,6 +83,18 @@ return {
 			require("nvim-tree").setup({
 				sort = {
 					sorter = "case_sensitive",
+				},
+				-- A large Android checkout can exhaust inotify watchers. Without
+				-- this gate nvim-tree reports one warning for every failed watcher,
+				-- flooding the notification UI during startup. Manual refresh and
+				-- navigation remain available with watchers disabled.
+				filesystem_watchers = {
+					enable = not large_source_tree,
+				},
+				-- Git status starts another scan over the same huge tree. Disable it
+				-- for this nvim session; normal projects keep the default behavior.
+				git = {
+					enable = not large_source_tree,
 				},
 				view = {
 					width = 40,
