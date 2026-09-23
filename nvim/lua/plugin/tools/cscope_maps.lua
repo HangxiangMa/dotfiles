@@ -50,6 +50,8 @@ return {
 				--   or paths relative to cwd. Otherwise JUMP will not work.
 				-- cscope executable
 				exec = "gtags-cscope", -- "cscope" or "gtags-cscope"
+				-- gtags-cscope builds GNU Global indexes; cscope-only -q/-k flags are not needed.
+				db_build_cmd = { script = "default", args = { "-b" } },
 				-- choose your fav picker
 				picker = "fzf-lua", -- "quickfix", "telescope", "fzf-lua" or "mini-pick"
 			},
