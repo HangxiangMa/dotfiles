@@ -1,0 +1,39 @@
+onboarding = false
+
+[theme]
+name = "one-dark"
+auto_switch = false
+
+[keys]
+# Agent navigation: cycle agents with prefix+Shift+Left/Right, or jump
+# directly to agent slots 1..9 with prefix+Alt+1..9.
+previous_agent = "prefix+shift+up"
+next_agent = "prefix+shift+down"
+focus_agent = "prefix+alt+1..9"
+
+# Keep the same Ctrl+h/j/k/l chords in Neovim and Herdr. The smart-splits.nvim
+# plugin forwards them to Neovim when it owns the current split, and crosses
+# the Herdr pane boundary when Neovim is at an edge.
+[[keys.command]]
+key = "ctrl+h"
+type = "plugin_action"
+command = "smart-splits.nvim.left"
+description = "navigate left (vim/herdr)"
+
+[[keys.command]]
+key = "ctrl+j"
+type = "plugin_action"
+command = "smart-splits.nvim.down"
+description = "navigate down (vim/herdr)"
+
+[[keys.command]]
+key = "ctrl+k"
+type = "plugin_action"
+command = "smart-splits.nvim.up"
+description = "navigate up (vim/herdr)"
+
+[[keys.command]]
+key = "ctrl+l"
+type = "plugin_action"
+command = "smart-splits.nvim.right"
+description = "navigate right (vim/herdr)"
