@@ -4,7 +4,11 @@ onboarding = false
 name = "one-dark"
 auto_switch = false
 
+[ui]
+sidebar_collapsed_mode = "hidden"
+
 [keys]
+toggle_sidebar = "prefix+b"
 detach = "prefix+d"
 # Keep the resize-mode entry point and provide reliable prefixed one-shot keys.
 resize_mode = "prefix+r"
