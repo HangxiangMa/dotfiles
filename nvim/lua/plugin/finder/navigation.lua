@@ -141,13 +141,10 @@ return {
 			})
 		end,
 	},
-	-- Split/pane navigation + resizing, both inside nvim and across tmux panes.
-	-- Superset of vim-tmux-navigator: same <C-hjkl> pane navigation (tmux.conf's
-	-- TPM plugin + its no-TPM fallback both just forward the raw <C-hjkl> press
-	-- into whatever looks vim-like in the pane, so they're agnostic to which
-	-- nvim-side plugin owns those keymaps — no tmux.conf changes needed here),
-	-- plus directional resize, replacing the hand-written <C-Left/Right/Up/Down>
-	-- `:resize` keymaps that used to live in core/keybindings.lua.
+	-- Split/pane navigation + resizing, both inside nvim and across Herdr panes.
+	-- The Herdr integration uses the same <C-hjkl> chords in both applications:
+	-- Herdr's smart-splits plugin forwards them to nvim, and smart-splits crosses
+	-- the Herdr boundary when nvim is at an edge.
 	--
 	-- Note: vim-tmux-navigator's `<C-\>` "jump to previous tmux pane" has no
 	-- equivalent here — smart-splits has no "previous pane" concept, so that
@@ -170,9 +167,9 @@ return {
 				default_amount = 2,
 				ignored_buftypes = { "nofile", "quickfix", "prompt" },
 				ignored_filetypes = { "NvimTree" },
-				-- At an edge split, moving/resizing further in that direction forwards
-				-- to the adjacent tmux pane instead of no-op'ing.
-				multiplexer_integration = "tmux",
+				-- At an edge split, moving further in that direction crosses into the
+				-- adjacent Herdr pane instead of wrapping inside nvim.
+				multiplexer_integration = "herdr",
 			})
 		end,
 	},
