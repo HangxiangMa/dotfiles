@@ -5,6 +5,15 @@ name = "one-dark"
 auto_switch = false
 
 [keys]
+detach = "prefix+d"
+# Keep the resize-mode entry point and provide reliable prefixed one-shot keys.
+resize_mode = "prefix+r"
+# Resize directly with a prefix, without relying on resize-mode local keys.
+resize_pane_left = "prefix+shift+h"
+resize_pane_down = "prefix+shift+j"
+resize_pane_up = "prefix+shift+k"
+resize_pane_right = "prefix+shift+l"
+
 # Agent navigation: cycle agents with prefix+Shift+Left/Right, or jump
 # directly to agent slots 1..9 with prefix+Alt+1..9.
 previous_agent = "prefix+shift+up"
