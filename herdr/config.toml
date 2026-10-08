@@ -18,10 +18,21 @@ resize_pane_down = "prefix+shift+j"
 resize_pane_up = "prefix+shift+k"
 resize_pane_right = "prefix+shift+l"
 
-# Agent navigation: cycle agents with prefix+Shift+Left/Right, or jump
-# directly to agent slots 1..9 with prefix+Alt+1..9.
-previous_agent = "prefix+shift+up"
-next_agent = "prefix+shift+down"
+# Workspace navigation: use the picker for discovery, arrows for adjacent
+# workspaces, and Shift+1..9 for direct access.
+workspace_picker = "prefix+w"
+goto = "prefix+g"
+previous_workspace = "prefix+shift+up"
+next_workspace = "prefix+shift+down"
+switch_workspace = "prefix+shift+1..9"
+new_workspace = "prefix+shift+n"
+rename_workspace = "prefix+shift+w"
+close_workspace = "prefix+shift+d"
+
+# Agent navigation: cycle agents vertically, or jump directly to agent slots
+# 1..9. Keeping the number row separate avoids collisions with workspaces.
+previous_agent = "prefix+alt+up"
+next_agent = "prefix+alt+down"
 focus_agent = "prefix+alt+1..9"
 
 # Keep the same Ctrl+h/j/k/l chords in Neovim and Herdr. The smart-splits.nvim
