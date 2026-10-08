@@ -1,12 +1,18 @@
 local uv = vim.uv or vim.loop
 
--- nvim-tree creates one libuv fs-event watcher per directory. Android source
--- trees can contain more directories than the host's inotify quota, making
--- every failed watcher start emit another notification. Detect the source
--- root without walking it so we can keep the tree usable but skip watchers.
+-- nvim-tree creates one libuv fs-event watcher per directory. Large Android
+-- and Linux kernel trees can contain more directories than the host's inotify
+-- quota, making every failed watcher start emit another notification. Detect
+-- the source root without walking it so we can keep the tree usable but skip
+-- watchers.
 local function is_directory(path)
 	local stat = uv.fs_stat(path)
 	return stat and stat.type == "directory"
+end
+
+local function is_file(path)
+	local stat = uv.fs_stat(path)
+	return stat and stat.type == "file"
 end
 
 local function normalize_path(path)
@@ -21,7 +27,19 @@ local function normalize_path(path)
 	return normalized
 end
 
-local function find_android_source_root(path)
+local function is_large_source_root(path)
+	return (is_directory(path .. "/.repo")
+		and is_directory(path .. "/build")
+		and is_directory(path .. "/vendor"))
+		or (is_file(path .. "/Makefile")
+			and is_file(path .. "/Kconfig")
+			and is_directory(path .. "/arch")
+			and is_directory(path .. "/drivers")
+			and is_directory(path .. "/include")
+			and is_directory(path .. "/scripts"))
+end
+
+local function find_large_source_root(path)
 	local candidate = normalize_path(path)
 	if not candidate or not is_directory(candidate) then
 		return nil
@@ -30,10 +48,7 @@ local function find_android_source_root(path)
 	-- Check a few ancestors so opening a directory below the checkout still
 	-- gets the same protection. No recursive filesystem scan is performed.
 	for _ = 1, 8 do
-		if is_directory(candidate .. "/.repo")
-			and is_directory(candidate .. "/build")
-			and is_directory(candidate .. "/vendor")
-		then
+		if is_large_source_root(candidate) then
 			return candidate
 		end
 
@@ -56,8 +71,8 @@ local function launch_directory()
 	return vim.fn.getcwd()
 end
 
-local android_source_root = find_android_source_root(launch_directory())
-local large_source_tree = android_source_root ~= nil
+local large_source_root = find_large_source_root(launch_directory())
+local large_source_tree = large_source_root ~= nil
 
 return {
 	-- nvim tree
@@ -84,8 +99,8 @@ return {
 				sort = {
 					sorter = "case_sensitive",
 				},
-				-- A large Android checkout can exhaust inotify watchers. Without
-				-- this gate nvim-tree reports one warning for every failed watcher,
+				-- A large source checkout can exhaust inotify watchers. Without this
+				-- gate nvim-tree reports one warning for every failed watcher,
 				-- flooding the notification UI during startup. Manual refresh and
 				-- navigation remain available with watchers disabled.
 				filesystem_watchers = {
