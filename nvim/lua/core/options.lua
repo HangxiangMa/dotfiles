@@ -81,7 +81,26 @@ vim.opt.formatoptions = vim.opt.formatoptions
 
 -- vim.o.winbar = " %{%v:lua.vim.fn.expand('%F')%}  %{%v:lua.require'nvim-navic'.get_location()%}"
 
-if vim.fn.executable("clipboard-provider") == 1 then
+if vim.env.HERDR_ENV == "1" then
+	-- Herdr accepts OSC 52 writes but does not answer OSC 52 read queries.
+	-- Keep paste local to Neovim while still copying yanks to the host
+	-- clipboard through Herdr.
+	local osc52 = require("vim.ui.clipboard.osc52")
+	local function internal_paste()
+		return { vim.fn.getreg('"', 1, true), vim.fn.getregtype('"') }
+	end
+	vim.g.clipboard = {
+		name = "herdr-osc52-copy-only",
+		copy = {
+			["+"] = osc52.copy("+"),
+			["*"] = osc52.copy("*"),
+		},
+		paste = {
+			["+"] = internal_paste,
+			["*"] = internal_paste,
+		},
+	}
+elseif vim.fn.executable("clipboard-provider") == 1 then
 	vim.g.clipboard = {
 		name = "self-clipboard",
 		copy = {
@@ -93,8 +112,10 @@ if vim.fn.executable("clipboard-provider") == 1 then
 			["*"] = "clipboard-provider paste",
 		},
 	}
-	-- Route yank/put through the system clipboard via the provider above.
-	-- vim.g.clipboard is set explicitly, so Neovim skips its usual clipboard
-	-- probe at startup; setting this synchronously has no startup cost.
+end
+
+if vim.g.clipboard then
+	-- Route yank/put through the configured system clipboard. vim.g.clipboard
+	-- is set explicitly, so Neovim skips its usual clipboard probe at startup.
 	vim.opt.clipboard = "unnamedplus"
 end
