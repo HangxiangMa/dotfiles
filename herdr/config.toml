@@ -1,5 +1,10 @@
 onboarding = false
 
+[terminal]
+# Herdr saves the cwd of a pane's root process only, so a `cd` made in a
+# nested shell is not saved. bash as the root shell keeps the saved cwd current.
+default_shell = "/bin/bash"
+
 [theme]
 name = "one-dark"
 auto_switch = false
