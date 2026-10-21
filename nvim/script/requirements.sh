@@ -88,7 +88,7 @@ show_help() {
 	echo "                            under DIR (e.g. \$WORKSPACE) and persist them in your shell rc."
 	echo "                            Useful when \$HOME has a quota."
 	echo "    --with-deps           - (migrate only) Also run install_nvim + essentials + bat/clang-tools/"
-	echo "                            clipboard-provider/fd/lazygit/lua_ls/python3-venv before deploying the config"
+	echo "                            clipboard-provider/fd/lazygit/lua_ls/python3-venv/pyenv before deploying the config"
 	echo "    --symlink             - Install \$XDG_CONFIG_HOME/nvim as a symlink to the in-repo nvim/ tree"
 	echo "                            instead of copying. Edits to the repo take effect immediately."
 	echo -e "    -y                    - Automatically answer 'yes' to sudo prompts\n"
@@ -125,6 +125,7 @@ show_components() {
 	echo -e "    9) neovim"
 	echo -e "   10) nvim-config"
 	echo -e "   11) python3-venv"
+	echo -e "   12) pyenv"
 }
 
 # Ask the user whether to escalate via sudo for the described action.
@@ -1120,6 +1121,53 @@ install_python3_venv() {
 	echo -e "${GREEN}[SUCCESS] Python venv is ready (Python ${python_version})${RESET}"
 }
 
+# Append the pyenv init line to ~/.bashrc once. The PATH and PYENV_ROOT lines
+# go through the shared helpers; init must be eval'd, so it is written here.
+append_pyenv_init_to_rc() {
+	local rc="$HOME/.bashrc"
+	[ -f "$rc" ] || touch "$rc"
+	if grep -Fq 'pyenv init' "$rc"; then
+		return 0
+	fi
+	cat >>"$rc" <<'EOF'
+
+# pyenv init (managed by requirements.sh)
+if command -v pyenv &>/dev/null; then eval "$(pyenv init - bash)"; fi
+EOF
+	echo -e "${CYAN}[INFO] Added pyenv init to ${rc}${RESET}"
+}
+
+# Clone pyenv into $PYENV_ROOT, default $WORKSPACE/.pyenv (off the quota'd $HOME).
+# An existing install at that path is reused, not updated.
+install_pyenv() {
+	local root="${PYENV_ROOT:-${WORKSPACE:-$HOME}/.pyenv}"
+	local root_rc="$root"
+	if [ -n "${WORKSPACE:-}" ] && [[ "$root" == "$WORKSPACE"* ]]; then
+		root_rc="\$WORKSPACE${root#"$WORKSPACE"}"
+	fi
+
+	if [ -x "$root/bin/pyenv" ]; then
+		echo -e "${BLUE}[pyenv]: already installed at ${root}${RESET}"
+	else
+		echo -e "${MAGENTA}[pyenv]: Installing pyenv to ${root}${RESET}"
+		if ! command -v git &>/dev/null; then
+			echo -e "${RED}[ERROR] pyenv needs git; install it first${RESET}"
+			return 1
+		fi
+		if ! git clone --depth 1 https://github.com/pyenv/pyenv.git "$root"; then
+			echo -e "${RED}[ERROR] Failed to clone pyenv into ${root}${RESET}"
+			return 1
+		fi
+	fi
+
+	export PYENV_ROOT="$root"
+	export PATH="${root}/bin:$PATH"
+	write_env_to_rc "PYENV_ROOT" "$root_rc"
+	append_path_to_rc "${root}/bin"
+	append_pyenv_init_to_rc
+	verify_installation "pyenv" "pyenv"
+}
+
 install_debug_tools() {
 	echo -e "${MAGENTA}[debug-tools]: Installing debug tools${RESET}"
 
@@ -1239,8 +1287,9 @@ select_component() {
 	9) install_nvim ;;
 	10) install_nvim_config ;;
 	11) install_python3_venv ;;
+	12) install_pyenv ;;
 	*)
-		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 11.${RESET}"
+		echo -e "${YELLOW}Invalid input. Please enter a number between 1 and 12.${RESET}"
 		exit 1
 		;;
 	esac
@@ -1697,7 +1746,8 @@ cmd_setup() {
 				lazygit     "lazygit: terminal git UI"                  ON  \
 				lua_ls      "lua-language-server for Neovim config"    ON  \
 				nvim        "Neovim binary (latest release)"           ON  \
-				python      "python3-venv + debugpy for DAP"           ON)"
+				python      "python3-venv + debugpy for DAP"           ON  \
+				pyenv       "pyenv: Python version manager"            ON)"
 			while IFS= read -r tag; do
 				case "$tag" in
 					bat)        track_install "bat"                install_bat ;;
@@ -1711,6 +1761,7 @@ cmd_setup() {
 					nvim)       track_install "nvim"               install_nvim ;;
 					python)     track_install "python3-venv"       install_python3_venv \
 					            && track_install "debug-tools"     install_debug_tools ;;
+					pyenv)      track_install "pyenv"              install_pyenv ;;
 				esac
 			done <<<"$picked"
 			cmd_migrate || return 1
@@ -1785,6 +1836,7 @@ install_all() {
 	track_install "lua_ls"             install_lua_ls
 	track_install "nvim"               install_nvim
 	track_install "python3-venv"       install_python3_venv
+	track_install "pyenv"              install_pyenv
 	install_summary_print
 }
 
@@ -2001,6 +2053,7 @@ cmd_migrate() {
 		track_install "lua_ls"             install_lua_ls
 		track_install "nvim"               install_nvim
 		track_install "python3-venv"       install_python3_venv
+		track_install "pyenv"              install_pyenv
 		# bat-extras / debug-tools are heavy; opt-in only.
 		install_summary_print
 	fi
