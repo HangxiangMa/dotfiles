@@ -36,10 +36,12 @@ push_pane() {
 TABS="$DIR/tabs"
 mkdir -p "$TABS"
 
-tab_of() {
+# Prints "<tab_id> <agent>", with "-" for a plain shell pane.
+pane_info() {
 	herdr pane get "$1" 2>/dev/null | python3 -I -c '
 import json, sys
-print(json.load(sys.stdin)["result"]["pane"]["tab_id"])' 2>/dev/null || true
+p = json.load(sys.stdin)["result"]["pane"]
+print(p["tab_id"], p.get("agent") or "-")' 2>/dev/null || true
 }
 
 # Each state file holds "<state> <pid> <workspace> <tab>".
@@ -79,10 +81,12 @@ while :; do
 			rm -f "$DIR/state/$pane"
 			push_pane "$pane" ""
 		else
-			tab=$(tab_of "$pane")
+			read -r tab agent <<<"$(pane_info "$pane")" || true
+			[ "$agent" != - ] || agent=
 			printf '%s %s %s %s\n' "$state" "$pid" "$ws" "$tab" >"$DIR/state/$pane"
-			# Icon on the pane, and a dot on its tab label; idle clears both.
-			push_pane "$pane" "$([ "$state" = busy ] && printf '●')"
+			# Agent panes keep herdr's own name, so only plain shell panes get the icon.
+			# The tab dot applies to every pane; idle clears both.
+			[ -n "$agent" ] || push_pane "$pane" "$([ "$state" = busy ] && printf '●')"
 		fi
 		[ -n "$tab" ] && push_tab "$tab" "$pane" "$state"
 		printf '%s %s %s\n' "$(date '+%T.%3N')" "$pane" "$state"
