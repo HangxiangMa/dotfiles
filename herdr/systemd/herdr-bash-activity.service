@@ -1,0 +1,15 @@
+[Unit]
+Description=herdr bash activity monitor (pane icon and tab dot)
+
+[Service]
+# Absolute path: the repo lives at this location on this host, and %h is $HOME, not the repo.
+# The monitor blocks on its FIFO between events, so it sits idle with no CPU use.
+# The user manager has a bare PATH, so herdr (in ~/.local/bin) and the socket path are set here.
+Environment=PATH=/usr2/hangxian/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=XDG_CONFIG_HOME=/local/mnt/workspace/hangxian/.config
+ExecStart=/local/mnt/workspace/hangxian/tools/qcom-public-dotfiles/herdr/script/bash-activity-monitor.sh
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
