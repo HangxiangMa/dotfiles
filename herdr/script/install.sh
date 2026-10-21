@@ -4,6 +4,7 @@
 #   ./script/install.sh              # symlink config + link plugin + reload
 #   ./script/install.sh --copy       # copy config instead of symlinking
 #   ./script/install.sh --bashrc     # also add the bash activity hook to ~/.bashrc
+#   ./script/install.sh --monitor    # also run the bash activity monitor as a user service
 #   ./script/install.sh --dry-run    # show actions without changing anything
 
 set -euo pipefail
@@ -16,6 +17,7 @@ DST_CONFIG="$CONFIG_DIR/config.toml"
 PLUGIN_DIR="${SMART_SPLITS_DIR:-}"
 COPY=0
 BASHRC=0
+MONITOR=0
 DRY_RUN=0
 
 usage() {
@@ -25,6 +27,7 @@ usage() {
 Options:
   --copy                  copy config.toml instead of creating a symlink
   --bashrc                add the bash activity hook block to ~/.bashrc
+  --monitor               run the bash activity monitor as a systemd user service
   --smart-splits-dir DIR  use this smart-splits.nvim checkout
   --dry-run               print actions without changing anything
   -h, --help              show this help
@@ -40,6 +43,7 @@ while [ "$#" -gt 0 ]; do
             PLUGIN_DIR="$1"
             ;;
         --bashrc) BASHRC=1 ;;
+        --monitor) MONITOR=1 ;;
         --dry-run) DRY_RUN=1 ;;
         -h|--help) usage; exit 0 ;;
         *) printf 'unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -120,4 +124,39 @@ if [ "$BASHRC" -eq 1 ]; then
     bashrc_args=()
     [ "$DRY_RUN" -eq 1 ] && bashrc_args+=(--dry-run)
     "$SCRIPT_DIR/install-bashrc.sh" "${bashrc_args[@]}"
+fi
+
+if [ "$MONITOR" -eq 1 ]; then
+    UNIT_SRC="$HERDR_DIR/systemd/herdr-bash-activity.service"
+    # The user manager does not inherit XDG_CONFIG_HOME from the shell, so it reads $HOME/.config.
+    UNIT_DIR="$HOME/.config/systemd/user"
+    UNIT_DST="$UNIT_DIR/herdr-bash-activity.service"
+    MON_PID_FILE="${XDG_RUNTIME_DIR:-/tmp}/herdr-bash-activity/monitor.pid"
+
+    run mkdir -p "$UNIT_DIR"
+    if [ -L "$UNIT_DST" ] && [ "$(readlink "$UNIT_DST")" = "$UNIT_SRC" ]; then
+        printf '%s already points to the repo unit\n' "$UNIT_DST"
+    else
+        if [ -e "$UNIT_DST" ] || [ -L "$UNIT_DST" ]; then
+            run rm -f "$UNIT_DST"
+        fi
+        run ln -s "$UNIT_SRC" "$UNIT_DST"
+    fi
+    run systemctl --user daemon-reload
+
+    # A monitor started by hand would hold the FIFO, so stop it before the service starts.
+    if [ -f "$MON_PID_FILE" ] && ! systemctl --user is-active --quiet herdr-bash-activity.service; then
+        manual_pid=$(cat "$MON_PID_FILE" 2>/dev/null || true)
+        if [ -n "$manual_pid" ] && kill -0 "$manual_pid" 2>/dev/null; then
+            run kill "$manual_pid"
+            # Wait for it to exit so the FIFO is free before the service opens it.
+            if [ "$DRY_RUN" -eq 0 ]; then
+                for _ in 1 2 3 4 5 6 7 8 9 10; do
+                    kill -0 "$manual_pid" 2>/dev/null || break
+                    sleep 0.2
+                done
+            fi
+        fi
+    fi
+    run systemctl --user enable --now herdr-bash-activity.service
 fi
