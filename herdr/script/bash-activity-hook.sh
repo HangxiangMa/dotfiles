@@ -2,9 +2,11 @@
 # Sends "<pane> busy|idle <shell-pid>" to bash-activity-monitor.sh. DEBUG fires
 # before each command and PROMPT_COMMAND when the prompt returns, so nothing polls.
 case $- in *i*) ;; *) return 0 ;; esac
+# Only inside herdr: the DEBUG trap below affects every command in the shell.
+[ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] || return 0
 
 _herdr_activity_dir=${HERDR_BASH_ACTIVITY_DIR:-${XDG_RUNTIME_DIR:-/tmp}/herdr-bash-activity}
-_herdr_activity_pane=${HERDR_PANE_ID:-pid$$}
+_herdr_activity_pane=$HERDR_PANE_ID
 _herdr_activity_ws=${HERDR_WORKSPACE_ID:--}
 _herdr_activity_busy=
 

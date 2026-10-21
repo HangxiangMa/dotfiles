@@ -3,6 +3,7 @@
 #
 #   ./script/install.sh              # symlink config + link plugin + reload
 #   ./script/install.sh --copy       # copy config instead of symlinking
+#   ./script/install.sh --bashrc     # also add the bash activity hook to ~/.bashrc
 #   ./script/install.sh --dry-run    # show actions without changing anything
 
 set -euo pipefail
@@ -14,6 +15,7 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/herdr"
 DST_CONFIG="$CONFIG_DIR/config.toml"
 PLUGIN_DIR="${SMART_SPLITS_DIR:-}"
 COPY=0
+BASHRC=0
 DRY_RUN=0
 
 usage() {
@@ -22,6 +24,7 @@ usage() {
 
 Options:
   --copy                  copy config.toml instead of creating a symlink
+  --bashrc                add the bash activity hook block to ~/.bashrc
   --smart-splits-dir DIR  use this smart-splits.nvim checkout
   --dry-run               print actions without changing anything
   -h, --help              show this help
@@ -36,6 +39,7 @@ while [ "$#" -gt 0 ]; do
             [ "$#" -gt 0 ] || { printf '%s requires a path\n' "$1" >&2; exit 2; }
             PLUGIN_DIR="$1"
             ;;
+        --bashrc) BASHRC=1 ;;
         --dry-run) DRY_RUN=1 ;;
         -h|--help) usage; exit 0 ;;
         *) printf 'unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
@@ -111,3 +115,9 @@ run herdr config check
 run herdr server reload-config
 printf 'Herdr config installed: %s\n' "$DST_CONFIG"
 printf 'smart-splits.nvim linked: %s\n' "$PLUGIN_DIR"
+
+if [ "$BASHRC" -eq 1 ]; then
+    bashrc_args=()
+    [ "$DRY_RUN" -eq 1 ] && bashrc_args+=(--dry-run)
+    "$SCRIPT_DIR/install-bashrc.sh" "${bashrc_args[@]}"
+fi
