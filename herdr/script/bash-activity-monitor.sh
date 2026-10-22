@@ -18,7 +18,7 @@ SOURCE=bash-activity
 mkdir -p "$DIR/state"
 [ -p "$EVENTS" ] || mkfifo -m 600 "$EVENTS"
 printf '%s\n' "$$" >"$DIR/monitor.pid"
-trap 'rm -f "$DIR/monitor.pid"; exit 0' EXIT HUP INT TERM
+trap 'kill $(jobs -p) 2>/dev/null; rm -f "$DIR/monitor.pid"; exit 0' EXIT HUP INT TERM
 
 # herdr may be unreachable (server stopped, or not inside herdr); a failed push
 # must not stop the monitor.
@@ -71,6 +71,33 @@ print(t["label"])' "$tab" 2>/dev/null) || return 0
 	fi
 }
 
+# An agent keeps its shell busy for the whole session, so the shell never sends
+# idle when the agent stops. watch_agent waits on herdr's agent state instead
+# (it blocks inside herdr; nothing polls) and writes idle to the same FIFO once
+# the agent has stopped. It runs in the background, one per pane.
+WATCH="$DIR/watch"
+mkdir -p "$WATCH"
+
+watch_agent() {
+	local pane=$1
+	# Loop over turns: an agent sits idle between turns, so the next turn needs a watcher too.
+	# The loop ends when the pane is no longer an agent (its wait errors and never reaches working).
+	while :; do
+		herdr agent wait "$pane" --until working >/dev/null 2>&1 || break
+		herdr agent wait "$pane" --until idle --until done --until blocked >/dev/null 2>&1 || break
+		printf '%s idle 0 -\n' "$pane" 1<>"$EVENTS"
+	done
+	rm -f "$WATCH/$pane"
+	printf '%s idle 0 -\n' "$pane" 1<>"$EVENTS"
+}
+
+start_watch() {
+	local pane=$1
+	[ -f "$WATCH/$pane" ] && kill -0 "$(cat "$WATCH/$pane")" 2>/dev/null && return 0
+	watch_agent "$pane" &
+	printf '%s\n' "$!" >"$WATCH/$pane"
+}
+
 while :; do
 	# Opening the FIFO blocks until a hook writes; EOF after the writer closes
 	# brings us back to the outer loop, which reopens it.
@@ -87,6 +114,8 @@ while :; do
 			# Agent panes keep herdr's own name, so only plain shell panes get the icon.
 			# The tab dot applies to every pane; idle clears both.
 			[ -n "$agent" ] || push_pane "$pane" "$([ "$state" = busy ] && printf '●')"
+			# Only a busy agent pane needs the watcher; the agent reports its own idle.
+			[ -n "$agent" ] && [ "$state" = busy ] && start_watch "$pane"
 		fi
 		[ -n "$tab" ] && push_tab "$tab" "$pane" "$state"
 		printf '%s %s %s\n' "$(date '+%T.%3N')" "$pane" "$state"
