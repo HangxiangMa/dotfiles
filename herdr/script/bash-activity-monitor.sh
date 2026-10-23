@@ -71,21 +71,36 @@ print(t["label"])' "$tab" 2>/dev/null) || return 0
 	fi
 }
 
-# An agent keeps its shell busy for the whole session, so the shell never sends
-# idle when the agent stops. watch_agent waits on herdr's agent state instead
-# (it blocks inside herdr; nothing polls) and writes idle to the same FIFO once
-# the agent has stopped. It runs in the background, one per pane.
+# An agent keeps its shell busy for the whole session, and a claude started at the
+# prompt reports busy before herdr sees the agent, so every busy event starts a
+# watcher for its pane. The watcher waits for the agent, then reports the agent's
+# own turns (busy while it works, idle when it stops), since the shell reports only
+# the start and end of the session. It runs in the background, one per pane.
 WATCH="$DIR/watch"
 mkdir -p "$WATCH"
 
 watch_agent() {
-	local pane=$1
-	# Loop over turns: an agent sits idle between turns, so the next turn needs a watcher too.
-	# The loop ends when the pane is no longer an agent (its wait errors and never reaches working).
+	local pane=$1 i=0
+	# Poll until the pane hosts an agent, while the shell is still busy. herdr's
+	# events.wait cannot match agent detection, so this is the only polling.
+	# shortcut: an agent that starts more than 30s after its busy event is not watched, upgrade if claude starts that late.
+	while ! herdr agent get "$pane" >/dev/null 2>&1; do
+		i=$((i + 1))
+		if [ "$i" -gt 30 ] || [ "$(cut -d' ' -f1 "$DIR/state/$pane" 2>/dev/null)" != busy ]; then
+			rm -f "$WATCH/$pane"
+			return 0
+		fi
+		sleep 1
+	done
+	# The busy shell may have set the icon while the pane was still plain; agent panes keep herdr's name.
+	push_pane "$pane" ""
+	# Idle first: it clears the busy shell that started the agent. Then one busy and
+	# one idle per turn. The loop ends when the pane is no longer an agent.
 	while :; do
-		herdr agent wait "$pane" --until working >/dev/null 2>&1 || break
 		herdr agent wait "$pane" --until idle --until done --until blocked >/dev/null 2>&1 || break
 		printf '%s idle 0 -\n' "$pane" 1<>"$EVENTS"
+		herdr agent wait "$pane" --until working >/dev/null 2>&1 || break
+		printf '%s busy 0 -\n' "$pane" 1<>"$EVENTS"
 	done
 	rm -f "$WATCH/$pane"
 	printf '%s idle 0 -\n' "$pane" 1<>"$EVENTS"
@@ -97,6 +112,13 @@ start_watch() {
 	watch_agent "$pane" &
 	printf '%s\n' "$!" >"$WATCH/$pane"
 }
+
+# A busy state left by a previous monitor has no watcher; start one so the agent's
+# next idle clears it.
+for f in "$DIR"/state/*; do
+	[ -f "$f" ] || continue
+	[ "$(cut -d' ' -f1 "$f")" = busy ] && start_watch "${f##*/}"
+done
 
 while :; do
 	# Opening the FIFO blocks until a hook writes; EOF after the writer closes
@@ -111,11 +133,13 @@ while :; do
 			read -r tab agent <<<"$(pane_info "$pane")" || true
 			[ "$agent" != - ] || agent=
 			printf '%s %s %s %s\n' "$state" "$pid" "$ws" "$tab" >"$DIR/state/$pane"
-			# Agent panes keep herdr's own name, so only plain shell panes get the icon.
-			# The tab dot applies to every pane; idle clears both.
-			[ -n "$agent" ] || push_pane "$pane" "$([ "$state" = busy ] && printf '●')"
-			# Only a busy agent pane needs the watcher; the agent reports its own idle.
-			[ -n "$agent" ] && [ "$state" = busy ] && start_watch "$pane"
+			# Agent panes keep herdr's own name, so a busy shell only gets the icon on a plain
+			# pane. Idle clears it on every pane, including one that became an agent while busy.
+			if [ "$state" = idle ] || [ -z "$agent" ]; then
+				push_pane "$pane" "$([ "$state" = busy ] && printf '●')"
+			fi
+			# A busy pane may turn into an agent, so every busy event gets a watcher.
+			[ "$state" = busy ] && start_watch "$pane"
 		fi
 		[ -n "$tab" ] && push_tab "$tab" "$pane" "$state"
 		printf '%s %s %s\n' "$(date '+%T.%3N')" "$pane" "$state"
