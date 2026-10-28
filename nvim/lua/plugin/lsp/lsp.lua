@@ -204,6 +204,11 @@ return {
 						-- called refresh() by hand is no longer needed.
 						vim.lsp.codelens.enable(true, { bufnr = ev.buf })
 					end
+
+					if client:supports_method("textDocument/inlayHint") then
+						-- shortcut: no line-count guard, the built-in hints re-request on scroll, upgrade if big files lag
+						vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
+					end
 				end,
 			})
 
