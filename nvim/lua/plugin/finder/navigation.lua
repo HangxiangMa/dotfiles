@@ -165,7 +165,12 @@ return {
 	-- equivalent here — smart-splits has no "previous pane" concept, so that
 	-- one shortcut is dropped rather than replaced.
 	{
-		"mrjones2014/smart-splits.nvim",
+		"smart-splits-nvim/smart-splits.nvim",
+		version = "^3.0.0",
+		dependencies = {
+			-- herdr support moved out of smart-splits in v3; this backend restores it.
+			{ "adriankarlen/smart-splits-backend-herdr", main = "smart-splits-backend-herdr" },
+		},
 		keys = {
 			{ "<C-h>", function() require("smart-splits").move_cursor_left() end, desc = "Move to left split/pane" },
 			{ "<C-j>", function() require("smart-splits").move_cursor_down() end, desc = "Move to below split/pane" },
@@ -179,12 +184,12 @@ return {
 		config = function()
 			require("smart-splits").setup({
 				-- Match the +2/-2 columns\lines the old hand-written :resize keymaps used.
-				default_amount = 2,
+				resize = { amount = 2 },
 				ignored_buftypes = { "nofile", "quickfix", "prompt" },
 				ignored_filetypes = { "NvimTree" },
 				-- At an edge split, moving further in that direction crosses into the
 				-- adjacent Herdr pane instead of wrapping inside nvim.
-				multiplexer_integration = "herdr",
+				mux = { backend = "smart-splits-backend-herdr" },
 			})
 		end,
 	},
