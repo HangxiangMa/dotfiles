@@ -1,0 +1,16 @@
+[Unit]
+Description=herdr bash activity monitor (pane icon and tab dot)
+
+[Service]
+# Rendered by script/install.sh --monitor; do not edit the generated unit by hand.
+# @WORKSPACE@ is $WORKSPACE at install time. The monitor blocks on its FIFO between
+# events, so it sits idle with no CPU use. The user manager has a bare PATH, so
+# herdr (in $WORKSPACE/.local/bin) and the socket path are set here.
+Environment=PATH=@WORKSPACE@/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=XDG_CONFIG_HOME=@WORKSPACE@/.config
+ExecStart=@MONITOR@
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the repo's Herdr config and smart-splits.nvim integration.
+# Install the repo's Herdr config and smart-splits-backend-herdr integration.
 #
 #   ./script/install.sh              # symlink config + link plugin + reload
 #   ./script/install.sh --copy       # copy config instead of symlinking
@@ -28,7 +28,7 @@ Options:
   --copy                  copy config.toml instead of creating a symlink
   --bashrc                add the bash activity hook block to ~/.bashrc
   --monitor               run the bash activity monitor as a systemd user service
-  --smart-splits-dir DIR  use this smart-splits.nvim checkout
+  --smart-splits-dir DIR  use this smart-splits-backend-herdr checkout
   --dry-run               print actions without changing anything
   -h, --help              show this help
 EOF
@@ -51,6 +51,14 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+# The monitor unit is rendered under $WORKSPACE. Refuse before changing anything
+# if it is unset, or the unit would point at paths under the root directory.
+if [ "$MONITOR" -eq 1 ] && { [ -z "${WORKSPACE:-}" ] || [ "$WORKSPACE" = / ] || [ ! -d "$WORKSPACE" ]; }; then
+    printf 'WARNING: $WORKSPACE is %s; refusing --monitor and making no changes.\n' "${WORKSPACE:-unset}" >&2
+    printf '         Set WORKSPACE (e.g. export WORKSPACE=$HOME) in your shell rc and re-run.\n' >&2
+    exit 1
+fi
+
 if ! command -v herdr >/dev/null 2>&1; then
     printf 'error: herdr is not installed or not on PATH\n' >&2
     exit 1
@@ -62,8 +70,8 @@ fi
 
 if [ -z "$PLUGIN_DIR" ]; then
     for candidate in \
-        "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/smart-splits.nvim" \
-        "$HOME/.local/share/nvim/lazy/smart-splits.nvim"; do
+        "${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/smart-splits-backend-herdr" \
+        "$HOME/.local/share/nvim/lazy/smart-splits-backend-herdr"; do
         if [ -f "$candidate/herdr-plugin.toml" ]; then
             PLUGIN_DIR="$candidate"
             break
@@ -71,7 +79,7 @@ if [ -z "$PLUGIN_DIR" ]; then
     done
 fi
 if [ -z "$PLUGIN_DIR" ] || [ ! -f "$PLUGIN_DIR/herdr-plugin.toml" ]; then
-    printf 'error: smart-splits.nvim checkout not found\n' >&2
+    printf 'error: smart-splits-backend-herdr checkout not found\n' >&2
     printf '       install it with Neovim first, or pass --smart-splits-dir DIR\n' >&2
     exit 1
 fi
@@ -118,7 +126,7 @@ run herdr plugin link "$PLUGIN_DIR"
 run herdr config check
 run herdr server reload-config
 printf 'Herdr config installed: %s\n' "$DST_CONFIG"
-printf 'smart-splits.nvim linked: %s\n' "$PLUGIN_DIR"
+printf 'smart-splits-backend-herdr linked: %s\n' "$PLUGIN_DIR"
 
 if [ "$BASHRC" -eq 1 ]; then
     bashrc_args=()
@@ -127,21 +135,24 @@ if [ "$BASHRC" -eq 1 ]; then
 fi
 
 if [ "$MONITOR" -eq 1 ]; then
-    UNIT_SRC="$HERDR_DIR/systemd/herdr-bash-activity.service"
+    UNIT_TMPL="$HERDR_DIR/systemd/herdr-bash-activity.service.in"
     # The user manager does not inherit XDG_CONFIG_HOME from the shell, so it reads $HOME/.config.
     UNIT_DIR="$HOME/.config/systemd/user"
     UNIT_DST="$UNIT_DIR/herdr-bash-activity.service"
     MON_PID_FILE="${XDG_RUNTIME_DIR:-/tmp}/herdr-bash-activity/monitor.pid"
 
+    # Render the template into a real file (not a symlink) so paths follow $WORKSPACE on this host.
+    # shortcut: values are substituted into sed as-is, so a path containing '|' or '&' breaks the unit.
+    render_unit() {
+        sed -e "s|@WORKSPACE@|$WORKSPACE|g" \
+            -e "s|@MONITOR@|$HERDR_DIR/script/bash-activity-monitor.sh|" \
+            "$UNIT_TMPL" >"$UNIT_DST"
+    }
+
     run mkdir -p "$UNIT_DIR"
-    if [ -L "$UNIT_DST" ] && [ "$(readlink "$UNIT_DST")" = "$UNIT_SRC" ]; then
-        printf '%s already points to the repo unit\n' "$UNIT_DST"
-    else
-        if [ -e "$UNIT_DST" ] || [ -L "$UNIT_DST" ]; then
-            run rm -f "$UNIT_DST"
-        fi
-        run ln -s "$UNIT_SRC" "$UNIT_DST"
-    fi
+    [ -L "$UNIT_DST" ] && run rm -f "$UNIT_DST"
+    run render_unit
+    printf 'rendered %s with WORKSPACE=%s\n' "$UNIT_DST" "$WORKSPACE"
     run systemctl --user daemon-reload
 
     # A monitor started by hand would hold the FIFO, so stop it before the service starts.
