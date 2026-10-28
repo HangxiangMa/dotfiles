@@ -124,7 +124,12 @@ fi
 
 run herdr plugin link "$PLUGIN_DIR"
 run herdr config check
-run herdr server reload-config
+# No running server is fine: herdr reads the config when it next starts.
+if [ "$DRY_RUN" -eq 1 ]; then
+    run herdr server reload-config
+elif ! herdr server reload-config >/dev/null 2>&1; then
+    printf 'note: no herdr server running; config applies on next start\n'
+fi
 printf 'Herdr config installed: %s\n' "$DST_CONFIG"
 printf 'smart-splits-backend-herdr linked: %s\n' "$PLUGIN_DIR"
 
