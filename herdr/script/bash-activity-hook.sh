@@ -19,6 +19,8 @@ _herdr_activity_send() {
 }
 
 _herdr_activity_debug() {
+	# With functrace the trap also fires inside the hook's own functions; skip those.
+	case " ${FUNCNAME[*]:1} " in *" _herdr_activity_"*) return ;; esac
 	[ "$BASH_COMMAND" = _herdr_activity_prompt ] && return
 	[ -n "$_herdr_activity_busy" ] && return
 	_herdr_activity_busy=1
@@ -30,6 +32,9 @@ _herdr_activity_prompt() {
 	_herdr_activity_send idle
 }
 
+# functrace (-T): without it the DEBUG trap is not inherited by ( ... ) subshells, so a
+# build run as (cd dir && make) never reports busy.
+set -T
 trap '_herdr_activity_debug' DEBUG
 # An exit command fires DEBUG but never returns to the prompt, so report "gone" here.
 trap '_herdr_activity_send gone' EXIT
