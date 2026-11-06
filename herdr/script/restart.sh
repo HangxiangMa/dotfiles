@@ -116,6 +116,53 @@ for pane_id, cwd in result.items():
 EOF
 printf '\n'
 
+# session.json keys panes by internal number; public_pane_numbers maps that
+# number to a public pane id (ws:pN) in the live pane list. "preview" prints
+# the cwd changes; "apply" writes them.
+patch_session() {
+    python3 - "$SESSION_FILE" "$LIVE_JSON" "$1" <<'EOF'
+import json, sys
+path, live_path, mode = sys.argv[1], sys.argv[2], sys.argv[3]
+live = json.load(open(live_path))
+data = json.load(open(path))
+
+# Herdr writes public numbers in Crockford base32 inside ids, so pane 10 is
+# "pA" and pane 121 is "p3D". Decimal ids miss or hit the wrong pane.
+CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+def public_id(number):
+    text = ""
+    while True:
+        text = CROCKFORD[number % 32] + text
+        number //= 32
+        if number == 0:
+            return text
+
+patched = 0
+for ws in data["workspaces"]:
+    numbers = ws["public_pane_numbers"]
+    for tab in ws["tabs"]:
+        for key, pane in tab["panes"].items():
+            pane_id = f"{ws['id']}:p{public_id(numbers[key])}"
+            if pane_id not in live:
+                print(f"warning: {pane_id} is not a live pane, cwd left as {pane.get('cwd')}")
+                continue
+            if pane.get("cwd") == live[pane_id]:
+                continue
+            print(f"{pane_id}: {pane.get('cwd')} -> {live[pane_id]}")
+            pane["cwd"] = live[pane_id]
+            patched += 1
+if mode == "apply":
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"patched {patched} pane cwd value(s)")
+else:
+    print(f"would patch {patched} pane cwd value(s)")
+EOF
+}
+
+patch_session preview
+printf '\n'
+
 if [ "$DRY_RUN" -eq 1 ]; then
     printf 'dry run: no changes made\n'
     exit 0
@@ -142,28 +189,7 @@ done
 BACKUP="$SESSION_FILE.bak-$(date +%Y%m%d-%H%M%S)"
 cp "$SESSION_FILE" "$BACKUP"
 
-# session.json keys panes by internal number; public_pane_numbers maps that
-# number to the ws:pN id used by the live pane list.
-python3 - "$SESSION_FILE" "$LIVE_JSON" <<'EOF'
-import json, sys
-path, live_path = sys.argv[1], sys.argv[2]
-live = json.load(open(live_path))
-data = json.load(open(path))
-patched = 0
-for ws in data["workspaces"]:
-    numbers = ws["public_pane_numbers"]
-    for tab in ws["tabs"]:
-        for key, pane in tab["panes"].items():
-            pane_id = f"{ws['id']}:p{numbers[key]}"
-            if pane_id not in live or pane.get("cwd") == live[pane_id]:
-                continue
-            print(f"{pane_id}: {pane.get('cwd')} -> {live[pane_id]}")
-            pane["cwd"] = live[pane_id]
-            patched += 1
-with open(path, "w") as f:
-    json.dump(data, f, indent=2)
-print(f"patched {patched} pane cwd value(s)")
-EOF
+patch_session apply
 
 # Start detached so the server outlives this script's terminal.
 nohup "${HERDR[@]}" server >> "$STATE_DIR/herdr-server.out" 2>&1 &
