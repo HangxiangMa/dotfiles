@@ -6,6 +6,14 @@
 #   ./script/install.sh --bashrc     # also add the bash activity hook to ~/.bashrc
 #   ./script/install.sh --monitor    # also run the bash activity monitor as a user service
 #   ./script/install.sh --dry-run    # show actions without changing anything
+#   ./script/install.sh --herdr-base workspace   # if herdr is missing, install it under $WORKSPACE
+#
+# If the herdr TUI is not on PATH, it is installed first with herdr.dev's
+# installer. Where it goes is chosen like the nvim XDG layout:
+#   home       $HOME/.local/bin          (default)
+#   workspace  $WORKSPACE/.local/bin     (avoids $HOME quotas)
+#   custom     any directory you give
+# Without --herdr-base, an interactive run asks; a non-interactive run uses home.
 
 set -euo pipefail
 
@@ -15,13 +23,17 @@ SRC_CONFIG="$HERDR_DIR/config.toml"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/herdr"
 DST_CONFIG="$CONFIG_DIR/config.toml"
 PLUGIN_DIR="${SMART_SPLITS_DIR:-}"
+HERDR_INSTALL_URL="https://herdr.dev/install.sh"
+HERDR_BASE=""          # home | workspace | custom; empty means ask (tty) or home
+HERDR_CUSTOM_DIR=""
+HERDR_INSTALL_DIR=""
 COPY=0
 BASHRC=0
 MONITOR=0
 DRY_RUN=0
 
 usage() {
-    sed -n '2,7p' "$0"
+    sed -n '2,/^$/p' "$0"
     cat <<EOF
 
 Options:
@@ -29,6 +41,8 @@ Options:
   --bashrc                add the bash activity hook block to ~/.bashrc
   --monitor               run the bash activity monitor as a systemd user service
   --smart-splits-dir DIR  use this smart-splits-backend-herdr checkout
+  --herdr-base CHOICE     where to install herdr if missing: home, workspace or custom
+  --herdr-custom-dir DIR  install herdr into DIR (implies --herdr-base custom)
   --dry-run               print actions without changing anything
   -h, --help              show this help
 EOF
@@ -39,8 +53,22 @@ while [ "$#" -gt 0 ]; do
         --copy) COPY=1 ;;
         --smart-splits-dir)
             shift
-            [ "$#" -gt 0 ] || { printf '%s requires a path\n' "$1" >&2; exit 2; }
+            [ "$#" -gt 0 ] || { printf -- '--smart-splits-dir requires a path\n' >&2; exit 2; }
             PLUGIN_DIR="$1"
+            ;;
+        --herdr-base)
+            shift
+            [ "$#" -gt 0 ] || { printf -- '--herdr-base requires home, workspace or custom\n' >&2; exit 2; }
+            case "$1" in
+                home|workspace|custom) HERDR_BASE="$1" ;;
+                *) printf 'unknown --herdr-base choice: %s\n' "$1" >&2; exit 2 ;;
+            esac
+            ;;
+        --herdr-custom-dir)
+            shift
+            [ "$#" -gt 0 ] || { printf -- '--herdr-custom-dir requires a path\n' >&2; exit 2; }
+            HERDR_BASE=custom
+            HERDR_CUSTOM_DIR="$1"
             ;;
         --bashrc) BASHRC=1 ;;
         --monitor) MONITOR=1 ;;
@@ -59,10 +87,96 @@ if [ "$MONITOR" -eq 1 ] && { [ -z "${WORKSPACE:-}" ] || [ "$WORKSPACE" = / ] || 
     exit 1
 fi
 
-if ! command -v herdr >/dev/null 2>&1; then
-    printf 'error: herdr is not installed or not on PATH\n' >&2
-    exit 1
-fi
+err() { printf 'error: %s\n' "$*" >&2; }
+
+# Ask where the herdr TUI should go. Only runs on a terminal with no --herdr-base.
+choose_herdr_base() {
+    local choice=""
+    printf 'herdr is not on PATH. Install the herdr TUI to:\n'
+    printf '  1) $HOME/.local/bin (default)\n'
+    printf '  2) $WORKSPACE/.local/bin (WORKSPACE=%s)\n' "${WORKSPACE:-unset}"
+    printf '  3) a custom directory\n'
+    printf 'choice [1]: '
+    read -r choice
+    case "${choice:-1}" in
+        1) HERDR_BASE=home ;;
+        2) HERDR_BASE=workspace ;;
+        3)
+            HERDR_BASE=custom
+            printf 'directory: '
+            read -r HERDR_CUSTOM_DIR
+            ;;
+        *) err "invalid choice: $choice"; exit 2 ;;
+    esac
+}
+
+# Resolve HERDR_BASE to HERDR_INSTALL_DIR, the directory the installer writes to.
+resolve_herdr_install_dir() {
+    case "$HERDR_BASE" in
+        home)
+            HERDR_INSTALL_DIR="$HOME/.local/bin"
+            ;;
+        workspace)
+            if [ -z "${WORKSPACE:-}" ] || [ "$WORKSPACE" = / ] || [ ! -d "$WORKSPACE" ]; then
+                err "\$WORKSPACE is ${WORKSPACE:-unset}; set it or pick another --herdr-base"
+                exit 1
+            fi
+            HERDR_INSTALL_DIR="$WORKSPACE/.local/bin"
+            ;;
+        custom)
+            if [ -z "$HERDR_CUSTOM_DIR" ]; then
+                err "custom herdr directory is empty"
+                exit 1
+            fi
+            case "$HERDR_CUSTOM_DIR" in
+                "~"/*) HERDR_INSTALL_DIR="$HOME/${HERDR_CUSTOM_DIR#"~/"}" ;;
+                *) HERDR_INSTALL_DIR="$HERDR_CUSTOM_DIR" ;;
+            esac
+            ;;
+    esac
+}
+
+# Make sure the herdr TUI is on PATH before any config is touched.
+ensure_herdr() {
+    if command -v herdr >/dev/null 2>&1; then
+        return 0
+    fi
+    if [ -z "$HERDR_BASE" ]; then
+        if [ -t 0 ]; then
+            choose_herdr_base
+        else
+            HERDR_BASE=home
+        fi
+    fi
+    resolve_herdr_install_dir
+
+    printf '+ curl -fsSL %s | HERDR_INSTALL_DIR=%s sh\n' "$HERDR_INSTALL_URL" "$HERDR_INSTALL_DIR"
+    if [ "$DRY_RUN" -eq 1 ]; then
+        return 0
+    fi
+    if ! curl -fsSL "$HERDR_INSTALL_URL" | HERDR_INSTALL_DIR="$HERDR_INSTALL_DIR" sh; then
+        err "herdr install failed (see $HERDR_INSTALL_URL)"
+        exit 1
+    fi
+    # Later steps (plugin link, config check, reload) run herdr from this shell.
+    local was_on_path=0
+    case ":$PATH:" in
+        *":$HERDR_INSTALL_DIR:"*) was_on_path=1 ;;
+    esac
+    PATH="$HERDR_INSTALL_DIR:$PATH"
+    export PATH
+    if ! command -v herdr >/dev/null 2>&1; then
+        err "herdr installed to $HERDR_INSTALL_DIR but is still not runnable"
+        exit 1
+    fi
+    if [ "$was_on_path" -eq 0 ]; then
+        printf 'note: %s is not on PATH in your shell rc; add:\n' "$HERDR_INSTALL_DIR"
+        printf '      export PATH="%s:$PATH"\n' "$HERDR_INSTALL_DIR"
+    fi
+}
+
+ensure_herdr
+
 if [ ! -f "$SRC_CONFIG" ]; then
     printf 'error: missing %s\n' "$SRC_CONFIG" >&2
     exit 1
